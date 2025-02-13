@@ -1,0 +1,685 @@
+<html><head><title>PPO训练分析(2024-9-2)</title><style>
+/* cspell:disable-file */
+/* webkit printing magic: print all background colors */
+html {
+	-webkit-print-color-adjust: exact;
+}
+* {
+	box-sizing: border-box;
+	-webkit-print-color-adjust: exact;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+@media only screen {
+	body {
+		margin: 2em auto;
+		max-width: 900px;
+		color: rgb(55, 53, 47);
+	}
+}
+
+body {
+	line-height: 1.5;
+	white-space: pre-wrap;
+}
+
+a,
+a.visited {
+	color: inherit;
+	text-decoration: underline;
+}
+
+.pdf-relative-link-path {
+	font-size: 80%;
+	color: #444;
+}
+
+h1,
+h2,
+h3 {
+	letter-spacing: -0.01em;
+	line-height: 1.2;
+	font-weight: 600;
+	margin-bottom: 0;
+}
+
+.page-title {
+	font-size: 2.5rem;
+	font-weight: 700;
+	margin-top: 0;
+	margin-bottom: 0.75em;
+}
+
+h1 {
+	font-size: 1.875rem;
+	margin-top: 1.875rem;
+}
+
+h2 {
+	font-size: 1.5rem;
+	margin-top: 1.5rem;
+}
+
+h3 {
+	font-size: 1.25rem;
+	margin-top: 1.25rem;
+}
+
+.source {
+	border: 1px solid #ddd;
+	border-radius: 3px;
+	padding: 1.5em;
+	word-break: break-all;
+}
+
+.callout {
+	border-radius: 3px;
+	padding: 1rem;
+}
+
+figure {
+	margin: 1.25em 0;
+	page-break-inside: avoid;
+}
+
+figcaption {
+	opacity: 0.5;
+	font-size: 85%;
+	margin-top: 0.5em;
+}
+
+mark {
+	background-color: transparent;
+}
+
+.indented {
+	padding-left: 1.5em;
+}
+
+hr {
+	background: transparent;
+	display: block;
+	width: 100%;
+	height: 1px;
+	visibility: visible;
+	border: none;
+	border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+}
+
+img {
+	max-width: 100%;
+}
+
+@media only print {
+	img {
+		max-height: 100vh;
+		object-fit: contain;
+	}
+}
+
+@page {
+	margin: 1in;
+}
+
+.collection-content {
+	font-size: 0.875rem;
+}
+
+.column-list {
+	display: flex;
+	justify-content: space-between;
+}
+
+.column {
+	padding: 0 1em;
+}
+
+.column:first-child {
+	padding-left: 0;
+}
+
+.column:last-child {
+	padding-right: 0;
+}
+
+.table_of_contents-item {
+	display: block;
+	font-size: 0.875rem;
+	line-height: 1.3;
+	padding: 0.125rem;
+}
+
+.table_of_contents-indent-1 {
+	margin-left: 1.5rem;
+}
+
+.table_of_contents-indent-2 {
+	margin-left: 3rem;
+}
+
+.table_of_contents-indent-3 {
+	margin-left: 4.5rem;
+}
+
+.table_of_contents-link {
+	text-decoration: none;
+	opacity: 0.7;
+	border-bottom: 1px solid rgba(55, 53, 47, 0.18);
+}
+
+table,
+th,
+td {
+	border: 1px solid rgba(55, 53, 47, 0.09);
+	border-collapse: collapse;
+}
+
+table {
+	border-left: none;
+	border-right: none;
+}
+
+th,
+td {
+	font-weight: normal;
+	padding: 0.25em 0.5em;
+	line-height: 1.5;
+	min-height: 1.5em;
+	text-align: left;
+}
+
+th {
+	color: rgba(55, 53, 47, 0.6);
+}
+
+ol,
+ul {
+	margin: 0;
+	margin-block-start: 0.6em;
+	margin-block-end: 0.6em;
+}
+
+li > ol:first-child,
+li > ul:first-child {
+	margin-block-start: 0.6em;
+}
+
+ul > li {
+	list-style: disc;
+}
+
+ul.to-do-list {
+	padding-inline-start: 0;
+}
+
+ul.to-do-list > li {
+	list-style: none;
+}
+
+.to-do-children-checked {
+	text-decoration: line-through;
+	opacity: 0.375;
+}
+
+ul.toggle > li {
+	list-style: none;
+}
+
+ul {
+	padding-inline-start: 1.7em;
+}
+
+ul > li {
+	padding-left: 0.1em;
+}
+
+ol {
+	padding-inline-start: 1.6em;
+}
+
+ol > li {
+	padding-left: 0.2em;
+}
+
+.mono ol {
+	padding-inline-start: 2em;
+}
+
+.mono ol > li {
+	text-indent: -0.4em;
+}
+
+.toggle {
+	padding-inline-start: 0em;
+	list-style-type: none;
+}
+
+/* Indent toggle children */
+.toggle > li > details {
+	padding-left: 1.7em;
+}
+
+.toggle > li > details > summary {
+	margin-left: -1.1em;
+}
+
+.selected-value {
+	display: inline-block;
+	padding: 0 0.5em;
+	background: rgba(206, 205, 202, 0.5);
+	border-radius: 3px;
+	margin-right: 0.5em;
+	margin-top: 0.3em;
+	margin-bottom: 0.3em;
+	white-space: nowrap;
+}
+
+.collection-title {
+	display: inline-block;
+	margin-right: 1em;
+}
+
+.page-description {
+    margin-bottom: 2em;
+}
+
+.simple-table {
+	margin-top: 1em;
+	font-size: 0.875rem;
+	empty-cells: show;
+}
+.simple-table td {
+	height: 29px;
+	min-width: 120px;
+}
+
+.simple-table th {
+	height: 29px;
+	min-width: 120px;
+}
+
+.simple-table-header-color {
+	background: rgb(247, 246, 243);
+	color: black;
+}
+.simple-table-header {
+	font-weight: 500;
+}
+
+time {
+	opacity: 0.5;
+}
+
+.icon {
+	display: inline-block;
+	max-width: 1.2em;
+	max-height: 1.2em;
+	text-decoration: none;
+	vertical-align: text-bottom;
+	margin-right: 0.5em;
+}
+
+img.icon {
+	border-radius: 3px;
+}
+
+.user-icon {
+	width: 1.5em;
+	height: 1.5em;
+	border-radius: 100%;
+	margin-right: 0.5rem;
+}
+
+.user-icon-inner {
+	font-size: 0.8em;
+}
+
+.text-icon {
+	border: 1px solid #000;
+	text-align: center;
+}
+
+.page-cover-image {
+	display: block;
+	object-fit: cover;
+	width: 100%;
+	max-height: 30vh;
+}
+
+.page-header-icon {
+	font-size: 3rem;
+	margin-bottom: 1rem;
+}
+
+.page-header-icon-with-cover {
+	margin-top: -0.72em;
+	margin-left: 0.07em;
+}
+
+.page-header-icon img {
+	border-radius: 3px;
+}
+
+.link-to-page {
+	margin: 1em 0;
+	padding: 0;
+	border: none;
+	font-weight: 500;
+}
+
+p > .user {
+	opacity: 0.5;
+}
+
+td > .user,
+td > time {
+	white-space: nowrap;
+}
+
+input[type="checkbox"] {
+	transform: scale(1.5);
+	margin-right: 0.6em;
+	vertical-align: middle;
+}
+
+p {
+	margin-top: 0.5em;
+	margin-bottom: 0.5em;
+}
+
+.image {
+	border: none;
+	margin: 1.5em 0;
+	padding: 0;
+	border-radius: 0;
+	text-align: center;
+}
+
+.code,
+code {
+	background: rgba(135, 131, 120, 0.15);
+	border-radius: 3px;
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+	font-size: 85%;
+	tab-size: 2;
+}
+
+code {
+	color: #eb5757;
+}
+
+.code {
+	padding: 1.5em 1em;
+}
+
+.code-wrap {
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.code > code {
+	background: none;
+	padding: 0;
+	font-size: 100%;
+	color: inherit;
+}
+
+blockquote {
+	font-size: 1.25em;
+	margin: 1em 0;
+	padding-left: 1em;
+	border-left: 3px solid rgb(55, 53, 47);
+}
+
+.bookmark {
+	text-decoration: none;
+	max-height: 8em;
+	padding: 0;
+	display: flex;
+	width: 100%;
+	align-items: stretch;
+}
+
+.bookmark-title {
+	font-size: 0.85em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	height: 1.75em;
+	white-space: nowrap;
+}
+
+.bookmark-text {
+	display: flex;
+	flex-direction: column;
+}
+
+.bookmark-info {
+	flex: 4 1 180px;
+	padding: 12px 14px 14px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+.bookmark-image {
+	width: 33%;
+	flex: 1 1 180px;
+	display: block;
+	position: relative;
+	object-fit: cover;
+	border-radius: 1px;
+}
+
+.bookmark-description {
+	color: rgba(55, 53, 47, 0.6);
+	font-size: 0.75em;
+	overflow: hidden;
+	max-height: 4.5em;
+	word-break: break-word;
+}
+
+.bookmark-href {
+	font-size: 0.75em;
+	margin-top: 0.25em;
+}
+
+.sans { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol"; }
+.code { font-family: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace; }
+.serif { font-family: Lyon-Text, Georgia, ui-serif, serif; }
+.mono { font-family: iawriter-mono, Nitti, Menlo, Courier, monospace; }
+.pdf .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK JP'; }
+.pdf:lang(zh-CN) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK SC'; }
+.pdf:lang(zh-TW) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK TC'; }
+.pdf:lang(ko-KR) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK KR'; }
+.pdf .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK JP'; }
+.pdf:lang(zh-CN) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK SC'; }
+.pdf:lang(zh-TW) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK TC'; }
+.pdf:lang(ko-KR) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK KR'; }
+.pdf .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK JP'; }
+.pdf:lang(zh-CN) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK SC'; }
+.pdf:lang(zh-TW) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK TC'; }
+.pdf:lang(ko-KR) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK KR'; }
+.pdf .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK JP'; }
+.pdf:lang(zh-CN) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK SC'; }
+.pdf:lang(zh-TW) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK TC'; }
+.pdf:lang(ko-KR) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK KR'; }
+.highlight-default {
+	color: rgba(55, 53, 47, 1);
+}
+.highlight-gray {
+	color: rgba(120, 119, 116, 1);
+	fill: rgba(120, 119, 116, 1);
+}
+.highlight-brown {
+	color: rgba(159, 107, 83, 1);
+	fill: rgba(159, 107, 83, 1);
+}
+.highlight-orange {
+	color: rgba(217, 115, 13, 1);
+	fill: rgba(217, 115, 13, 1);
+}
+.highlight-yellow {
+	color: rgba(203, 145, 47, 1);
+	fill: rgba(203, 145, 47, 1);
+}
+.highlight-teal {
+	color: rgba(68, 131, 97, 1);
+	fill: rgba(68, 131, 97, 1);
+}
+.highlight-blue {
+	color: rgba(51, 126, 169, 1);
+	fill: rgba(51, 126, 169, 1);
+}
+.highlight-purple {
+	color: rgba(144, 101, 176, 1);
+	fill: rgba(144, 101, 176, 1);
+}
+.highlight-pink {
+	color: rgba(193, 76, 138, 1);
+	fill: rgba(193, 76, 138, 1);
+}
+.highlight-red {
+	color: rgba(212, 76, 71, 1);
+	fill: rgba(212, 76, 71, 1);
+}
+.highlight-default_background {
+	color: rgba(55, 53, 47, 1);
+}
+.highlight-gray_background {
+	background: rgba(241, 241, 239, 1);
+}
+.highlight-brown_background {
+	background: rgba(244, 238, 238, 1);
+}
+.highlight-orange_background {
+	background: rgba(251, 236, 221, 1);
+}
+.highlight-yellow_background {
+	background: rgba(251, 237, 214, 1);
+}
+.highlight-teal_background {
+	background: rgba(237, 243, 236, 1);
+}
+.highlight-blue_background {
+	background: rgba(231, 243, 248, 1);
+}
+.highlight-purple_background {
+	background: rgba(244, 240, 247, 0.8);
+}
+.highlight-pink_background {
+	background: rgba(249, 238, 243, 0.8);
+}
+.highlight-red_background {
+	background: rgba(253, 235, 236, 1);
+}
+.block-color-default {
+	color: inherit;
+	fill: inherit;
+}
+.block-color-gray {
+	color: rgba(120, 119, 116, 1);
+	fill: rgba(120, 119, 116, 1);
+}
+.block-color-brown {
+	color: rgba(159, 107, 83, 1);
+	fill: rgba(159, 107, 83, 1);
+}
+.block-color-orange {
+	color: rgba(217, 115, 13, 1);
+	fill: rgba(217, 115, 13, 1);
+}
+.block-color-yellow {
+	color: rgba(203, 145, 47, 1);
+	fill: rgba(203, 145, 47, 1);
+}
+.block-color-teal {
+	color: rgba(68, 131, 97, 1);
+	fill: rgba(68, 131, 97, 1);
+}
+.block-color-blue {
+	color: rgba(51, 126, 169, 1);
+	fill: rgba(51, 126, 169, 1);
+}
+.block-color-purple {
+	color: rgba(144, 101, 176, 1);
+	fill: rgba(144, 101, 176, 1);
+}
+.block-color-pink {
+	color: rgba(193, 76, 138, 1);
+	fill: rgba(193, 76, 138, 1);
+}
+.block-color-red {
+	color: rgba(212, 76, 71, 1);
+	fill: rgba(212, 76, 71, 1);
+}
+.block-color-default_background {
+	color: inherit;
+	fill: inherit;
+}
+.block-color-gray_background {
+	background: rgba(241, 241, 239, 1);
+}
+.block-color-brown_background {
+	background: rgba(244, 238, 238, 1);
+}
+.block-color-orange_background {
+	background: rgba(251, 236, 221, 1);
+}
+.block-color-yellow_background {
+	background: rgba(251, 237, 214, 1);
+}
+.block-color-teal_background {
+	background: rgba(237, 243, 236, 1);
+}
+.block-color-blue_background {
+	background: rgba(231, 243, 248, 1);
+}
+.block-color-purple_background {
+	background: rgba(244, 240, 247, 0.8);
+}
+.block-color-pink_background {
+	background: rgba(249, 238, 243, 0.8);
+}
+.block-color-red_background {
+	background: rgba(253, 235, 236, 1);
+}
+.select-value-color-uiBlue { background-color: rgba(35, 131, 226, .07); }
+.select-value-color-pink { background-color: rgba(245, 224, 233, 1); }
+.select-value-color-purple { background-color: rgba(232, 222, 238, 1); }
+.select-value-color-green { background-color: rgba(219, 237, 219, 1); }
+.select-value-color-gray { background-color: rgba(227, 226, 224, 1); }
+.select-value-color-transparentGray { background-color: rgba(227, 226, 224, 0); }
+.select-value-color-translucentGray { background-color: rgba(0, 0, 0, 0.06); }
+.select-value-color-orange { background-color: rgba(250, 222, 201, 1); }
+.select-value-color-brown { background-color: rgba(238, 224, 218, 1); }
+.select-value-color-red { background-color: rgba(255, 226, 221, 1); }
+.select-value-color-yellow { background-color: rgba(249, 228, 188, 1); }
+.select-value-color-blue { background-color: rgba(211, 229, 239, 1); }
+.select-value-color-pageGlass { background-color: undefined; }
+.select-value-color-washGlass { background-color: undefined; }
+
+.checkbox {
+	display: inline-flex;
+	vertical-align: text-bottom;
+	width: 16;
+	height: 16;
+	background-size: 16px;
+	margin-left: 2px;
+	margin-right: 5px;
+}
+
+.checkbox-on {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Crect%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%2358A9D7%22%2F%3E%0A%3Cpath%20d%3D%22M6.71429%2012.2852L14%204.9995L12.7143%203.71436L6.71429%209.71378L3.28571%206.2831L2%207.57092L6.71429%2012.2852Z%22%20fill%3D%22white%22%2F%3E%0A%3C%2Fsvg%3E");
+}
+
+.checkbox-off {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Crect%20x%3D%220.75%22%20y%3D%220.75%22%20width%3D%2214.5%22%20height%3D%2214.5%22%20fill%3D%22white%22%20stroke%3D%22%2336352F%22%20stroke-width%3D%221.5%22%2F%3E%0A%3C%2Fsvg%3E");
+}
+	
+</style></head><body class="pdf en-US" lang="en-US"><article id="0cf2ba32-8c37-40bd-90ac-a0fdbcfda842" class="page sans"><header><h1 class="page-title">PPO训练分析(2024-9-2)</h1><p class="page-description"></p></header><div class="page-body"><h1 id="3a9778ef-311c-49ec-92d3-944df4dd27b0" class="">1，训练初期</h1><figure id="3361a019-bbfe-4fe6-804a-4bdcb4b2dc3d" class="image"><img style="width:2200px" src="https://prod-files-secure.s3.us-west-2.amazonaws.com/83be4777-176f-44e1-acd0-eb7d4ce94802/5cfe3b7e-cb25-4144-bf80-2bcee5f97b57/image.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=AKIAT73L2G45HZZMZUHI%2F20240903%2Fus-west-2%2Fs3%2Faws4_request&amp;X-Amz-Date=20240903T080754Z&amp;X-Amz-Expires=86400&amp;X-Amz-Signature=30567eeaec3a602ed426b87c54b9757f8fa78d28ea57e220dffaab72a4f28adc&amp;X-Amz-SignedHeaders=host&amp;x-id=GetObject"/></figure><p id="eb13fb3f-7ab3-4835-b632-fc7dd65efeb6" class="">这张图表展示了交通系统在一段时间内的四个关键指标变化。让我们详细分析一下：</p><h3 id="6ad982f5-3102-4120-b200-74d044ebd668" class="">图表分析</h3><ol type="1" id="0ec74786-6a67-4417-8901-4ebe497ff507" class="numbered-list" start="1"><li><strong>平均速度 (Average Speed)</strong>:<ul id="8ba11553-2571-4825-9447-1774a084b8dc" class="bulleted-list"><li style="list-style-type:disc">速度在0-12之间变化，整体波动较大。</li></ul><ul id="d6194b78-3652-4629-8a23-1a48da98add1" class="bulleted-list"><li style="list-style-type:disc">初始速度较高，但迅速下降并在较低水平波动，约在2-6之间。</li></ul><ul id="a7098dd6-e61f-41d2-ab48-9b81ae164300" class="bulleted-list"><li style="list-style-type:disc">速度的下降和波动表明交通流量可能不稳定，或者信号灯控制策略需要优化。</li></ul></li></ol><ol type="1" id="b8127eda-335c-440e-a8e8-9605e9f4a188" class="numbered-list" start="2"><li><strong>系统总停车数 (System total stopped)</strong>:<ul id="055ca1df-3cb2-4d63-96d8-d809d3d67e88" class="bulleted-list"><li style="list-style-type:disc">停车数量在0-120辆之间波动。</li></ul><ul id="990e1708-3c2f-47b5-a472-760124370b45" class="bulleted-list"><li style="list-style-type:disc">停车数量在时间步骤约1000之后逐渐增加，并在较高水平波动。</li></ul><ul id="5c055a9d-9d45-4ffc-9ca2-ca75c9e65cb1" class="bulleted-list"><li style="list-style-type:disc">这表明随着时间的推移，交通拥堵情况变得更加严重。</li></ul></li></ol><ol type="1" id="d7352035-c935-41f6-a6c1-e10de4d5f25e" class="numbered-list" start="3"><li><strong>系统总等待时间 (System total waiting time)</strong>:<ul id="d9e6ec27-3984-4bd5-ad88-aff5a24f023e" class="bulleted-list"><li style="list-style-type:disc">等待时间大多数时候保持在较低水平，但有几次明显的峰值，最高峰值约为10000单位。</li></ul><ul id="22c08965-f98e-460f-b1d5-be311eab5333" class="bulleted-list"><li style="list-style-type:disc">这些峰值可能对应交通拥堵事件或信号灯控制不当的情况。</li></ul><ul id="df878034-e254-40d0-8c59-03cf84a9a18a" class="bulleted-list"><li style="list-style-type:disc">等待时间的波动表明交通流量不稳定。</li></ul></li></ol><ol type="1" id="04deca34-0ef8-4795-8833-1d0e7fe1a80d" class="numbered-list" start="4"><li><strong>代理总停车数 (agents total stopped)</strong>:<ul id="7e0858bf-4645-4b93-9af3-a6d6fcff613e" class="bulleted-list"><li style="list-style-type:disc">停车数量在0-120辆之间波动。</li></ul><ul id="8349a694-336f-4c17-9b94-b8a6310a08c4" class="bulleted-list"><li style="list-style-type:disc">停车数量在时间步骤约1000之后逐渐增加，并在较高水平波动。</li></ul><ul id="6bd1cb36-f41e-4e20-8357-b59a4bbb10f3" class="bulleted-list"><li style="list-style-type:disc">这与系统总停车数的趋势一致，表明交通拥堵情况变得更加严重。</li></ul></li></ol><h3 id="1e7fdff0-0d0d-44ad-8cd0-9fbe182176a6" class="">总结</h3><ul id="e96ef348-0442-44e5-8ad8-0064c78c625f" class="bulleted-list"><li style="list-style-type:disc"><strong>平均速度</strong>：初始速度较高，但迅速下降并在较低水平波动，表明交通流量不稳定。</li></ul><ul id="5519fc29-cf63-42c4-a266-23b29c0d5252" class="bulleted-list"><li style="list-style-type:disc"><strong>系统总停车数</strong>：停车数量逐渐增加，并在较高水平波动，表明交通拥堵情况变得更加严重。</li></ul><ul id="72e2a794-1678-49ce-9d21-30e9be80db13" class="bulleted-list"><li style="list-style-type:disc"><strong>系统总等待时间</strong>：等待时间有几次明显的峰值，表明交通流量不稳定。</li></ul><ul id="7629f6ce-840f-4eb4-b80a-ece84308991c" class="bulleted-list"><li style="list-style-type:disc"><strong>代理总停车数</strong>：停车数量逐渐增加，并在较高水平波动，表明交通拥堵情况变得更加严重。</li></ul><h3 id="ada4c0e6-c1e6-4184-953e-63ae6f078137" class="">改进建议</h3><ol type="1" id="86d71165-9f98-46a6-9e98-6045b117ae91" class="numbered-list" start="1"><li><strong>优化交通信号控制策略</strong>：考虑调整信号灯的时间设置，以减少停车次数和等待时间，提高平均速度。</li></ol><ol type="1" id="d4a3d852-34f9-4d19-ba50-b4c0b6a3a7c4" class="numbered-list" start="2"><li><strong>分析交通拥堵原因</strong>：研究导致等待时间和停车数量增加的原因，以防止类似情况再次发生。</li></ol><ol type="1" id="5f0bb6fa-8580-4551-ab9d-c38d71f8ee88" class="numbered-list" start="3"><li><strong>实施智能交通管理系统</strong>：考虑使用更智能的交通管理系统，以更好地应对交通流量的变化。</li></ol><ol type="1" id="9aa49c4d-a535-483e-b383-0a65d5b05489" class="numbered-list" start="4"><li><strong>进一步训练模型</strong>：如果这是一个强化学习模型的结果，可能需要进一步训练模型，以提高其性能。</li></ol><p id="9e642fe9-b86b-432b-9aa1-0281774896be" class="">这张图表显示的交通系统性能较差，平均速度较低，停车数量和等待时间较多，表明当前的交通控制策略需要改进。</p><h1 id="3c0b51dc-8d85-4a31-ae2e-1f6530c1d70f" class="">2，训练后期</h1><figure id="7a4de06d-9b6b-44c0-b28b-984e0807529f" class="image"><img style="width:708px" src="https://prod-files-secure.s3.us-west-2.amazonaws.com/83be4777-176f-44e1-acd0-eb7d4ce94802/ca11fcab-6395-4da1-9c09-8384e07f796f/image.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&amp;X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&amp;X-Amz-Credential=AKIAT73L2G45HZZMZUHI%2F20240903%2Fus-west-2%2Fs3%2Faws4_request&amp;X-Amz-Date=20240903T080754Z&amp;X-Amz-Expires=86400&amp;X-Amz-Signature=85f7bb3870626458daadc84ee6924108337507389683bbf5fe3719756fdf6f7c&amp;X-Amz-SignedHeaders=host&amp;x-id=GetObject"/></figure><p id="2a323fad-1f08-403e-8667-19ef2843d344" class="">这张图表展示了交通系统在另一段时间内的四个关键指标变化。让我们详细分析一下，并与上一张图表进行比较：</p><h3 id="c80bb2b9-af54-4dfb-8358-9536d5bd1ff7" class="">当前图表分析</h3><ol type="1" id="f962748c-fe5b-429e-8bba-d47b2291c27d" class="numbered-list" start="1"><li><strong>平均速度 (Average Speed)</strong>:<ul id="16840f71-0f4c-4db0-ac9f-d7aeb41ad5c4" class="bulleted-list"><li style="list-style-type:disc">速度大约在8-14之间变化，整体波动较小。</li></ul><ul id="0da322a8-046e-4244-8b8f-adb94735b820" class="bulleted-list"><li style="list-style-type:disc">初始速度较低，但迅速上升并在较高水平波动，约在10-12之间。</li></ul><ul id="60021a29-995b-4b0e-869a-2a985ebbb68c" class="bulleted-list"><li style="list-style-type:disc">速度的稳定性较好，表明交通流量较为顺畅。</li></ul></li></ol><ol type="1" id="90c4479a-8746-439e-a546-49011245068d" class="numbered-list" start="2"><li><strong>系统总停车数 (System total stopped)</strong>:<ul id="96b996fd-e865-4770-a56c-587c31ad5562" class="bulleted-list"><li style="list-style-type:disc">停车数量在0-10辆之间波动。</li></ul><ul id="4f44db0e-38f5-47cc-b0ab-0032a38dfc49" class="bulleted-list"><li style="list-style-type:disc">停车数量较少，且波动范围较小，表明交通拥堵情况较轻。</li></ul></li></ol><ol type="1" id="348e3a9c-e560-46d1-a2cb-aec46076066d" class="numbered-list" start="3"><li><strong>系统总等待时间 (System total waiting time)</strong>:<ul id="d5ffd7a6-00bd-40ef-825c-1a9b42047bbb" class="bulleted-list"><li style="list-style-type:disc">等待时间大多数时候保持在较低水平，最高峰值约为40单位。</li></ul><ul id="73fb03df-456f-415f-8db0-0364d23af1ec" class="bulleted-list"><li style="list-style-type:disc">等待时间的波动较小，表明交通流量较为顺畅。</li></ul></li></ol><ol type="1" id="2fb77c84-8064-4c0f-a16f-34ea85c234a0" class="numbered-list" start="4"><li><strong>代理总停车数 (agents total stopped)</strong>:<ul id="f71a14bc-b9d7-4709-9908-75fae1453752" class="bulleted-list"><li style="list-style-type:disc">停车数量在0-8辆之间波动。</li></ul><ul id="02b605af-3d64-4ae6-8784-b5512e9e7fe5" class="bulleted-list"><li style="list-style-type:disc">停车数量较少，且波动范围较小，表明交通拥堵情况较轻。</li></ul></li></ol><h3 id="9b2c184c-013f-4665-ba2b-686d51316577" class="">比较分析</h3><ol type="1" id="dc4231d2-ca9e-48c3-a7ee-b89a34588d6d" class="numbered-list" start="1"><li><strong>平均速度</strong>:<ul id="3d56b28f-c89c-4fc1-92aa-e712f9046cd4" class="bulleted-list"><li style="list-style-type:disc">当前图表的平均速度更高且更稳定，表明交通流量更加顺畅。</li></ul><ul id="b78ffcb2-14ad-41e5-9982-543d4e410fdf" class="bulleted-list"><li style="list-style-type:disc">上一张图表的平均速度较低且波动较大，表明交通流量不稳定。</li></ul></li></ol><ol type="1" id="57cad653-6e0d-4ee8-b69e-b8327a66c24c" class="numbered-list" start="2"><li><strong>系统总停车数</strong>:<ul id="3f57e9f8-ad20-42fd-9266-be7a90776e03" class="bulleted-list"><li style="list-style-type:disc">当前图表的停车数量显著减少，表明交通控制策略更有效。</li></ul><ul id="4bccca1c-6d41-483a-a9b6-c61cf85361bd" class="bulleted-list"><li style="list-style-type:disc">上一张图表的停车数量较多，表明交通控制策略可能需要优化。</li></ul></li></ol><ol type="1" id="e032563f-c998-437c-afdd-48e72cf746e6" class="numbered-list" start="3"><li><strong>系统总等待时间</strong>:<ul id="9ec13cb0-3e18-4ffd-aef3-ff1bd2a5bcf5" class="bulleted-list"><li style="list-style-type:disc">当前图表的等待时间显著减少，表明交通流量更加顺畅。</li></ul><ul id="0b6ba81a-6ac1-423a-a89e-7b181d93bd2d" class="bulleted-list"><li style="list-style-type:disc">上一张图表的等待时间较多，表明交通流量不稳定。</li></ul></li></ol><ol type="1" id="d6830384-fcfd-4811-9da0-4399f60de5a0" class="numbered-list" start="4"><li><strong>代理总停车数</strong>:<ul id="c40663ea-ec88-46c0-abb0-0fd7b060e76e" class="bulleted-list"><li style="list-style-type:disc">当前图表的停车数量显著减少，表明交通控制策略更有效。</li></ul><ul id="fd211a61-efce-4955-85a8-3bdbbe95ca2d" class="bulleted-list"><li style="list-style-type:disc">上一张图表的停车数量较多，表明交通控制策略可能需要优化。</li></ul></li></ol><h3 id="1e415162-ac92-424e-8279-c9c26f877a42" class="">总结</h3><ul id="52e5dd03-802f-4da9-b996-1ac4abcbad74" class="bulleted-list"><li style="list-style-type:disc"><strong>平均速度</strong>：当前图表的平均速度更高且更稳定，表明交通流量更加顺畅。</li></ul><ul id="ca98ab54-4b31-4b9d-946d-89a87747f8ae" class="bulleted-list"><li style="list-style-type:disc"><strong>系统总停车数</strong>：当前图表的停车数量显著减少，表明交通控制策略更有效。</li></ul><ul id="faa69b47-33ae-4058-a822-9efab1fc5750" class="bulleted-list"><li style="list-style-type:disc"><strong>系统总等待时间</strong>：当前图表的等待时间显著减少，表明交通流量更加顺畅。</li></ul><ul id="d3283292-46fb-4d84-99ec-1a2e7735681b" class="bulleted-list"><li style="list-style-type:disc"><strong>代理总停车数</strong>：当前图表的停车数量显著减少，表明交通控制策略更有效。</li></ul><h3 id="5189e790-3738-48b3-be01-da3ab3a006d5" class="">改进建议</h3><ol type="1" id="1950be52-3020-45e0-844a-82f2807f937c" class="numbered-list" start="1"><li><strong>保持当前策略</strong>：当前图表显示的交通系统性能较好，建议保持当前的交通控制策略。</li></ol><ol type="1" id="5ca82311-13da-4794-a201-3db9ad9b81f2" class="numbered-list" start="2"><li><strong>进一步优化</strong>：虽然当前图表显示的性能较好，但仍有进一步优化的空间，可以继续调整信号灯的时间设置，以进一步减少停车次数和等待时间。</li></ol><ol type="1" id="bf59f73b-c117-4097-9343-563e373b6147" class="numbered-list" start="3"><li><strong>监控和调整</strong>：持续监控交通系统的性能，根据实际情况进行调整，以确保交通流量的顺畅。</li></ol><p id="1f384c38-dec6-4cf8-a826-a21c3bf45aaf" class="">这张图表显示的交通系统性能显著优于上一张图表，平均速度更高且更稳定，停车数量和等待时间显著减少，表明当前的交通控制策略较为有效。</p><p id="9bbbc720-7e3f-48f1-8701-cb2c0a69530b" class="">
+</p></div></article></body></html>
