@@ -101,14 +101,39 @@ netconvert --node-files=xgzd.nod.xml \
 ### 6， 编写需求模型 xgzd.rou.xml
 ``` 
 <routes>
+    <vType accel="1.0" decel="4.5" id="standard_car" length="5.0" minGap="2.5" maxSpeed="30" sigma="0.5" />
+
+    <!--北南直行-->
     <route id="route_ns" edges="n_t t_s"/>
-    <route id="route_sn" edges="s_t t_n"/>
-    <route id="route_we" edges="w_t t_e"/>
+    <!--北南左转-->
+    <route id="route_ne" edges="n_t t_e"/>
+
+    <!--东西直行-->
     <route id="route_ew" edges="e_t t_w"/>
-    <flow id="flow_ns" route="route_ns" begin="0" end="100000" probability="0.2" departSpeed="max" departPos="base" departLane="best"/>
-    <flow id="flow_sn" route="route_sn" begin="0" end="100000" probability="0.2" departSpeed="max" departPos="base" departLane="best"/>
-    <flow id="flow_we" route="route_we" begin="0" end="100000" probability="0.5" departSpeed="max" departPos="base" departLane="best"/>
-    <flow id="flow_ew" route="route_ew" begin="0" end="100000" probability="0.5" departSpeed="max" departPos="base" departLane="best"/>
+    <!--东西左转-->
+    <route id="route_es" edges="e_t t_s"/>
+
+    <!--南北直行-->
+    <route id="route_sn" edges="s_t t_n"/>
+    <!--南北左转-->
+    <route id="route_sw" edges="s_t t_w"/>
+
+    <!--西东直行-->
+    <route id="route_we" edges="w_t t_e"/>
+    <!--西东左转-->
+    <route id="route_wn" edges="w_t t_n"/>
+
+    <flow id="flow_ns" route="route_ns" begin="0" end="100000" vehsPerHour="300" departSpeed="max" departPos="base" departLane="best"/>
+    <flow id="flow_ne" route="route_ne" begin="0" end="100000" vehsPerHour="50" departSpeed="max" departPos="base" departLane="best"/>
+
+    <flow id="flow_ew" route="route_ew" begin="0" end="100000" vehsPerHour="500" departSpeed="max" departPos="base" departLane="best"/>
+    <flow id="flow_es" route="route_es" begin="0" end="100000" vehsPerHour="100" departSpeed="max" departPos="base" departLane="best"/>
+
+    <flow id="flow_sn" route="route_sn" begin="0" end="100000" vehsPerHour="300" departSpeed="max" departPos="base" departLane="best"/>
+    <flow id="flow_sw" route="route_sw" begin="0" end="100000" vehsPerHour="60" departSpeed="max" departPos="base" departLane="best"/>
+
+    <flow id="flow_we" route="route_we" begin="0" end="100000" vehsPerHour="500" departSpeed="max" departPos="base" departLane="best"/>
+    <flow id="flow_wn" route="route_wn" begin="0" end="100000" vehsPerHour="100" departSpeed="max" departPos="base" departLane="best"/>
 </routes>
 ```
 
@@ -117,8 +142,8 @@ netconvert --node-files=xgzd.nod.xml \
 ``` 
 <configuration>
     <input>
-        <net-file value="编写xgzd.net.xml"/>
-        <route-files value="编写xgzd.rou.xml"/>
+        <net-file value="xgzd.net.xml"/>
+        <route-files value="xgzd.rou.xml"/>
     </input>
     <time>
         <begin value="0"/>

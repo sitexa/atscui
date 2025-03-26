@@ -68,10 +68,10 @@ class TrainingTab:
     def render(self):
         with gr.Row():
             with gr.Column(scale=2):
-                network_file = gr.File(label="路网模型", value="zszx/net/zszx-2.net.xml", file_types=[".xml", ".net.xml"])
-                demand_file = gr.File(label="交通需求", value="zszx/net/zszx-perhour-3.rou.xml", file_types=[".xml", ".rou.xml"])
+                network_file = gr.File(label="路网模型", value="xgzd/net/xgzd.net.xml", file_types=[".xml", ".net.xml"])
+                demand_file = gr.File(label="交通需求", value="xgzd/net/xgzd-perhour.rou.xml", file_types=[".xml", ".rou.xml"])
             with gr.Column(scale=1):
-                algorithm = gr.Dropdown(["DQN", "PPO", "A2C", "SAC"], value="PPO", label="算法模型")
+                algorithm = gr.Dropdown(["DQN", "PPO", "A2C", "SAC"], value="DQN", label="算法模型")
                 operation = gr.Dropdown(["EVAL", "TRAIN", "PREDICT", "ALL"], value="TRAIN", label="运行功能")
 
         with gr.Row():
