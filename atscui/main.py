@@ -26,7 +26,7 @@ def main():
 
     ui = ATSCUI()
     demo = ui.create_ui()
-    demo.launch(enable_queue=True,server_name="0.0.0.0",server_port=7861)
+    demo.queue().launch(server_name="0.0.0.0",server_port=7861)
 
 
 if __name__ == "__main__":
