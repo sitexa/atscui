@@ -1,7 +1,9 @@
 # 核心机器学习框架
 numpy<2.0
 pandas<2.0
-tensorflow-macos==2.15.0
+# TensorFlow (跨平台兼容)
+tensorflow==2.15.0; sys_platform != "darwin"
+tensorflow-macos==2.15.0; sys_platform == "darwin"
 tensorboard==2.15.0
 
 # PyTorch 生态系统
