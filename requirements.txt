@@ -21,7 +21,7 @@ sumolib
 traci
 
 # 用户界面和可视化
-gradio==4.20.0
+gradio==4.16.0
 matplotlib<4.0
 
 # 科学计算和工具库
