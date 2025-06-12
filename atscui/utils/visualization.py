@@ -219,3 +219,14 @@ class Visualizer:
         # 组合新的完整路径
         new_pathname = os.path.join(directory, new_filename)
         return new_pathname
+
+
+# 创建全局visualizer实例
+visualizer = Visualizer()
+
+# 便捷函数
+def plot_process(train_out_file, folder_name, file_name):
+    return visualizer.plot_process(train_out_file, folder_name, file_name)
+
+def plot_predict(predict_file, folder_name, file_name):
+    return visualizer.plot_predict(predict_file, folder_name, file_name)

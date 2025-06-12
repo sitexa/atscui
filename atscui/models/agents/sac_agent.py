@@ -1,8 +1,8 @@
-from stable_baselines3 import SAC
 from atscui.models.base_agent import BaseAgent
 
 class SACAgent(BaseAgent):
     def _create_model(self):
+        from stable_baselines3 import SAC
         return SAC(
             env=self.env,
             policy="MlpPolicy",

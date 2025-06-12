@@ -1,11 +1,10 @@
-from stable_baselines3 import A2C
-
 from atscui.models.base_agent import BaseAgent
 
 
 class A2CAgent(BaseAgent):
 
     def _create_model(self):
+        from stable_baselines3 import A2C
         return A2C(
             env=self.env,
             policy="MlpPolicy",

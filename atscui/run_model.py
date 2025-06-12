@@ -52,6 +52,10 @@ def running():
             print("action=====", action)
 
 
+# 便捷函数
+def run_model():
+    return running()
+
 if __name__ == "__main__":
     running()
 

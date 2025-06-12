@@ -1,10 +1,10 @@
-from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv
-
 from mysumo.envs.sumo_env import ContinuousSumoEnv, SumoEnv
 
 
 def createEnv(config):
+    # 延迟导入stable_baselines3模块
+    from stable_baselines3.common.monitor import Monitor
+    from stable_baselines3.common.vec_env import DummyVecEnv
     if config.algo_name == "SAC":
         print("=====create ContinuousEnv for SAC=====")
         env = ContinuousSumoEnv(
