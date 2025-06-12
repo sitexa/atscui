@@ -26,7 +26,7 @@ def main():
 
     ui = ATSCUI()
     demo = ui.create_ui()
-    demo.launch()
+    demo.launch(enable_queue=True)
 
 
 if __name__ == "__main__":
