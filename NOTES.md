@@ -21,4 +21,10 @@
    - 超参数优化
    - 采用真实的路口数据进行训练和优化
 
-test
+# 日志目录说明：在config_manager.py中配置 (2025-06-13)
+
+- evals : 用于存储模型评估的结果。eval_path="evals/default-eval-DQN.txt"。
+- logs : 用于存放 TensorBoard 的日志。
+- monitor : 用于 stable_baselines3.common.monitor.Monitor 模块，负责存储 SUMO 环境的监控数据。
+- outs : 用于存储模型运行的输出文件，通常是 CSV 格式。csv_path="outs/default-DQN" 。
+- predicts : 用于存储模型的预测结果，通常是 JSON 格式。predict_path="predicts/default-predict-DQN.json"。

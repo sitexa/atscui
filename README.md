@@ -16,13 +16,13 @@
 
 ## 操作类型(operation)
 
-- TRAIN: 根据配置训练智能体，并保存模型(model.zip)和日志(conn*.csv)
-- EVAL: 评估模型，保存评估结果(eval.txt)
-- PREDICT: 用模型预测，保存预测结果(predict.json)
+- TRAIN: 根据配置训练智能体，并保存模型(models/model.zip)和日志(outs/conn*.csv)
+- EVAL: 评估模型，保存评估结果(evals/eval.txt)
+- PREDICT: 用模型预测，保存预测结果(predicts/predict.json)
 
 ## 运行命令
 
-在项目根目录执行命令：``` python atscui/main.py ```
+在项目根目录执行命令：``` python -m atscui.main ```
 
 ## 加载模型进行预测
 

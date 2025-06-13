@@ -9,7 +9,7 @@ from typing import Tuple, Optional
 import gradio as gr
 
 from atscui.utils.utils import utility_manager
-from atscui.utils.file_utils import file_manager
+from atscui.utils.file_utils import file_manager, extract_crossname_from_evalfile
 from atscui.utils.visualization import Visualizer
 from atscui.exceptions import ValidationError, FileOperationError, VisualizationError
 from atscui.logging_manager import get_logger
@@ -248,7 +248,7 @@ class VisualizationTab:
             eval_filename = ntpath.basename(filename)
             
             # 提取路口名称
-            cross_name = utility_manager.extract_crossname_from_evalfile(eval_filename)
+            cross_name = extract_crossname_from_evalfile(eval_filename)
             if not cross_name:
                 return None, "❌ 无法从文件名中提取路口名称，请检查文件命名格式"
             
