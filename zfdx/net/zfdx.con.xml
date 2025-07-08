@@ -1,0 +1,43 @@
+<connections>
+    <!--从北到南,右转,无灯控-->
+    <!--从北到南,直行-->
+    <connection from="n_t" to="t_s" fromLane="0" toLane="0" pass="True"/>
+    <connection from="n_t" to="t_s" fromLane="1" toLane="1" pass="True"/>
+    <connection from="n_t" to="t_s" fromLane="2" toLane="2" pass="True"/>
+    <connection from="n_t" to="t_s" fromLane="3" toLane="3" pass="True"/>
+
+    <!--从北到南,左转-->
+    <connection from="n_t" to="t_e" fromLane="4" toLane="4" pass="True"/>
+    <!--从北到南,调头,无-->
+
+    <!--从南到北，右转,无灯控-->
+    <!--从南到北，直行-->
+    <connection from="s_t" to="t_n" fromLane="0" toLane="0" pass="True"/>
+    <connection from="s_t" to="t_n" fromLane="1" toLane="1" pass="True"/>
+    <connection from="s_t" to="t_n" fromLane="2" toLane="2" pass="True"/>
+    <!--从南到北，左转-->
+    <connection from="s_t" to="t_w" fromLane="3" toLane="3" pass="True"/>
+    <connection from="s_t" to="t_w" fromLane="4" toLane="4" pass="True"/>   
+    <!--从南到北，调头,无-->
+
+    <!--从东到西，右转，无灯控-->
+    <!--从东到西，直行-->
+    <connection from="e_t" to="t_w" fromLane="0" toLane="0" pass="True"/>
+    <connection from="e_t" to="t_w" fromLane="1" toLane="1" pass="True"/>
+    <connection from="e_t" to="t_w" fromLane="2" toLane="2" pass="True"/>
+    <!--从东到西，左转-->
+    <connection from="e_t" to="t_s" fromLane="3" toLane="3" pass="True"/>
+    <connection from="e_t" to="t_s" fromLane="4" toLane="4" pass="True"/>
+    <!--从东到西，调头，无-->
+
+    <!--从西到东，右转，无灯控-->
+    <!--从西到东，直行-->
+    <connection from="w_t" to="t_e" fromLane="0" toLane="0" pass="True"/>
+    <connection from="w_t" to="t_e" fromLane="1" toLane="1" pass="True"/>
+    <connection from="w_t" to="t_e" fromLane="2" toLane="2" pass="True"/>
+
+    <!--从西到东，左转-->
+    <connection from="w_t" to="t_n" fromLane="3" toLane="3" pass="True"/>
+    <!--从西到东，调头，无-->
+
+</connections>

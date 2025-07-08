@@ -7,7 +7,7 @@ import json
 import traceback
 from typing import Dict, Any, Optional, Tuple, Generator, Iterator
 
-from atscui.config.base_config import TrainingConfig, RunningConfig
+from atscui.config.base_config import TrainingConfig, RunningConfig, DQNConfig, PPOConfig, A2CConfig, SACConfig, BaseConfig
 from atscui.environment.env_creator import createEnv
 from atscui.models.agent_creator import AgentFactory, createAgent
 from atscui.utils.file_utils import file_manager, extract_crossname_from_netfile, ensure_dir
@@ -32,7 +32,7 @@ class ParameterParser:
         self.logger = get_logger('parameter_parser')
         self.config_manager = ConfigManager()
     
-    def parse_and_validate(self, **kwargs) -> TrainingConfig:
+    def parse_and_validate(self, **kwargs) -> BaseConfig:
         """解析并验证参数
         
         Args:
@@ -106,11 +106,11 @@ class ParameterParser:
         if num_seconds <= 0:
             raise ValidationError("仿真秒数必须大于0")
     
-    def _create_config(self, params: Dict[str, Any]) -> TrainingConfig:
+    def _create_config(self, params: Dict[str, Any]) -> BaseConfig:
         """创建配置对象"""
         try:
             net_file = params.get('net_file')
-            algo_name = params.get('algo_name', 'DQN')
+            algo_name = params.get('algo_name', 'DQN')  # 默认算法模型
             
             _cross_name = extract_crossname_from_netfile(net_file)
             cvs_file = _cross_name + "-" + algo_name
@@ -123,28 +123,52 @@ class ParameterParser:
             eval_path = os.path.join(ensure_dir("evals"), eval_file)
             tensorboard_logpath = ensure_dir(params.get('tensorboard_logs', 'logs'))
             
-            config = TrainingConfig(
-                net_file=net_file,
-                rou_file=params.get('rou_file'),
-                csv_path=csv_path,
-                model_path=model_path,
-                predict_path=predict_path,
-                eval_path=eval_path,
-                single_agent=params.get('single_agent', True),
-                gui=params.get('gui', True),
-                render_mode=params.get('render_mode', None),
-                operation=params.get('operation', 'TRAIN'),
-                algo_name=algo_name,
-                total_timesteps=params.get('total_timesteps', 864_000),
-                num_seconds=params.get('num_seconds', 10000),
-                n_steps=params.get('n_steps', 1024),
-                n_eval_episodes=params.get('n_eval_episodes', 10),
-                tensorboard_logs=tensorboard_logpath
-            )
+            # 根据算法名称选择相应的配置类
+            config_class = self._get_config_class(algo_name)
+            
+            # 创建基础配置参数
+            base_config_params = {
+                'net_file': net_file,
+                'rou_file': params.get('rou_file'),
+                'csv_path': csv_path,
+                'model_path': model_path,
+                'predict_path': predict_path,
+                'eval_path': eval_path,
+                'single_agent': params.get('single_agent', True),
+                'gui': params.get('gui', True),
+                'render_mode': params.get('render_mode', None),
+                'operation': params.get('operation', 'TRAIN'),
+                'algo_name': algo_name,
+                'tensorboard_logs': tensorboard_logpath
+            }
+            
+            # 如果用户提供了参数，则覆盖默认值
+            if 'total_timesteps' in params:
+                base_config_params['total_timesteps'] = params['total_timesteps']
+            if 'num_seconds' in params:
+                base_config_params['num_seconds'] = params['num_seconds']
+            if 'n_steps' in params:
+                base_config_params['n_steps'] = params['n_steps']
+            if 'n_eval_episodes' in params:
+                base_config_params['n_eval_episodes'] = params['n_eval_episodes']
+            
+            config = config_class(**base_config_params)
             return config
             
         except Exception as e:
             raise ConfigurationError(f"创建配置对象失败: {e}")
+    
+    def _get_config_class(self, algo_name: str):
+        """根据算法名称获取相应的配置类"""
+        config_mapping = {
+            'DQN': DQNConfig,
+            'PPO': PPOConfig,
+            'A2C': A2CConfig,
+            'SAC': SACConfig
+        }
+        
+        # 如果算法名称不在映射中，使用默认的TrainingConfig
+        return config_mapping.get(algo_name, TrainingConfig)
 
 
 # 全局参数解析器实例
@@ -163,7 +187,7 @@ def parseParams(net_file,  # 网络模型
                 total_timesteps=864_000,  # 总训练时间步（1天)
                 gui=True,  # 图形界面
                 render_mode=None,  # 渲染模式
-                ) -> TrainingConfig:
+                ) -> BaseConfig:
     """解析参数的便捷函数
     
     保持向后兼容性的包装函数。
@@ -209,12 +233,12 @@ class TrainingTab:
                 with gr.Column(scale=2):
                     network_file = gr.File(
                         label="路网模型", 
-                        value="xgzd/net/xgzd.net.xml", 
+                        value="zfdx/net/zfdx.net.xml", 
                         file_types=[".xml", ".net.xml"]
                     )
                     demand_file = gr.File(
                         label="交通需求", 
-                        value="xgzd/net/xgzd-perhour.rou.xml", 
+                        value="zfdx/net/zfdx-perhour.rou.xml", 
                         file_types=[".xml", ".rou.xml"]
                     )
                 with gr.Column(scale=1):
@@ -371,7 +395,7 @@ class TrainingTab:
     
     def _parse_training_config(self, network_file, demand_file, algorithm, 
                               operation, total_timesteps, num_seconds, 
-                              gui_checkbox) -> TrainingConfig:
+                              gui_checkbox) -> BaseConfig:
         """解析训练配置"""
         try:
             import shlex
@@ -411,7 +435,7 @@ class TrainingTab:
             self.logger.error(error_msg)
             return error_msg
 
-    def run_simulation(self, config: TrainingConfig) -> Iterator[Tuple[int, str]]:
+    def run_simulation(self, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行仿真训练
         
         Args:
@@ -484,7 +508,7 @@ class TrainingTab:
             except Exception as e:
                 self.logger.warning(f"清理资源时出现警告: {e}")
     
-    def _run_evaluation(self, model, config: TrainingConfig) -> Iterator[Tuple[int, str]]:
+    def _run_evaluation(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行评估"""
         try:
             yield 30, "开始评估模型性能..."
@@ -512,7 +536,7 @@ class TrainingTab:
         except Exception as e:
             raise TrainingError(f"评估失败: {e}")
     
-    def _run_training(self, model, config: TrainingConfig) -> Iterator[Tuple[int, str]]:
+    def _run_training(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行训练"""
         try:
             yield 30, "开始模型训练..."
@@ -553,7 +577,7 @@ class TrainingTab:
         except Exception as e:
             raise TrainingError(f"训练失败: {e}")
     
-    def _run_prediction(self, model, config: TrainingConfig) -> Iterator[Tuple[int, str]]:
+    def _run_prediction(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行预测"""
         try:
             yield 30, "开始模型预测..."
@@ -593,7 +617,7 @@ class TrainingTab:
         except Exception as e:
             raise TrainingError(f"预测失败: {e}")
     
-    def _run_all_operations(self, model, config: TrainingConfig) -> Iterator[Tuple[int, str]]:
+    def _run_all_operations(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行所有操作"""
         try:
             # 延迟导入evaluate_policy
