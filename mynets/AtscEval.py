@@ -4,7 +4,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.dqn.dqn import DQN
 sys.path.append('..')
 
-from mysumo.envs.sumo_env import SumoEnv, ContinuousSumoEnv
+from sumo_core.envs.sumo_env import SumoEnv, ContinuousSumoEnv
 
 # 没有写完。想将整个流程分为几部分：（1）训练前评估性能；（2）训练模型，num_seconds：每回合时间（秒），n_eval_episodes：评估回合，total_timesteps：总训练步，n_steps：每回合时间步。
 env = SumoEnv(

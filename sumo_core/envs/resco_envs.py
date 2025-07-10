@@ -4,11 +4,11 @@ import sys
 
 sys.path.append('../')
 
-import mysumo.envs  # 确保自定义环境被注册
+import sumo_core.envs  # 确保自定义环境被注册
 
-from mysumo.envs.sumo_env import env, parallel_env
+from sumo_core.envs.sumo_env import env, parallel_env
 
-PATH = os.path.dirname(mysumo.__file__)
+PATH = os.path.dirname(sumo_core.__file__)
 PATH = os.path.dirname(PATH)
 
 def grid4x4(parallel=True, **kwargs):

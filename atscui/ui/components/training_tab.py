@@ -111,15 +111,17 @@ class ParameterParser:
         try:
             net_file = params.get('net_file')
             algo_name = params.get('algo_name', 'DQN')  # 默认算法模型
+            phase_control = params.get('phase_control', 'sequential')  # 默认相位控制模式
             
             _cross_name = extract_crossname_from_netfile(net_file)
-            cvs_file = _cross_name + "-" + algo_name
+            # 在文件名中包含phase_control信息
+            cvs_file = _cross_name + "-" + algo_name + "-" + phase_control
             csv_path = os.path.join(ensure_dir("outs"), cvs_file)
-            model_file = _cross_name + "-model-" + algo_name + ".zip"
+            model_file = _cross_name + "-model-" + algo_name + "-" + phase_control + ".zip"
             model_path = os.path.join(ensure_dir("models"), model_file)
-            predict_file = _cross_name + "-predict-" + algo_name + ".json"
+            predict_file = _cross_name + "-predict-" + algo_name + "-" + phase_control + ".json"
             predict_path = os.path.join(ensure_dir("predicts"), predict_file)
-            eval_file = _cross_name + "-eval-" + algo_name + ".txt"
+            eval_file = _cross_name + "-eval-" + algo_name + "-" + phase_control + ".txt"
             eval_path = os.path.join(ensure_dir("evals"), eval_file)
             tensorboard_logpath = ensure_dir(params.get('tensorboard_logs', 'logs'))
             
@@ -139,6 +141,7 @@ class ParameterParser:
                 'render_mode': params.get('render_mode', None),
                 'operation': params.get('operation', 'TRAIN'),
                 'algo_name': algo_name,
+                'phase_control': phase_control,
                 'tensorboard_logs': tensorboard_logpath
             }
             
@@ -187,6 +190,7 @@ def parseParams(net_file,  # 网络模型
                 total_timesteps=864_000,  # 总训练时间步（1天)
                 gui=True,  # 图形界面
                 render_mode=None,  # 渲染模式
+                phase_control="sequential",  # 相位控制模式
                 ) -> BaseConfig:
     """解析参数的便捷函数
     
@@ -204,7 +208,8 @@ def parseParams(net_file,  # 网络模型
         n_steps=n_steps,
         total_timesteps=total_timesteps,
         gui=gui,
-        render_mode=render_mode
+        render_mode=render_mode,
+        phase_control=phase_control
     )
 
 
@@ -252,17 +257,22 @@ class TrainingTab:
                         value="TRAIN", 
                         label="运行功能"
                     )
+                    phase_control = gr.Dropdown(
+                        ["sequential", "flexible"], 
+                        value="sequential", 
+                        label="相位控制模式"
+                    )
             
             with gr.Row():
                 total_timesteps = gr.Slider(
-                    1000, 100_000_000, 
-                    value=100_000_000, 
+                    1000, 10_000_000, 
+                    value=10_000_000, 
                     step=1000, 
                     label="训练步数"
                 )
                 num_seconds = gr.Slider(
-                    1000, 20_000, 
-                    value=20_000, 
+                    1000, 10_000, 
+                    value=10_000, 
                     step=1000, 
                     label="仿真秒数"
                 )
@@ -288,7 +298,7 @@ class TrainingTab:
                 self.run_training,
                 inputs=[
                     network_file, demand_file, algorithm, operation, 
-                    total_timesteps, num_seconds, gui_checkbox
+                    total_timesteps, num_seconds, gui_checkbox, phase_control
                 ],
                 outputs=[progress, output_msg]
             )
@@ -309,7 +319,8 @@ class TrainingTab:
                      operation,
                      total_timesteps,
                      num_seconds,
-                     gui_checkbox) -> Iterator[Tuple[int, str]]:
+                     gui_checkbox,
+                     phase_control) -> Iterator[Tuple[int, str]]:
         """运行训练任务
         
         Args:
@@ -320,6 +331,7 @@ class TrainingTab:
             total_timesteps: 总训练步数
             num_seconds: 仿真秒数
             gui_checkbox: 是否使用GUI
+            phase_control: 相位控制模式
             
         Yields:
             Tuple[int, str]: (进度百分比, 输出信息)
@@ -342,7 +354,7 @@ class TrainingTab:
             yield 5, "正在解析训练参数..."
             config = self._parse_training_config(
                 network_file, demand_file, algorithm, operation,
-                total_timesteps, num_seconds, gui_checkbox
+                total_timesteps, num_seconds, gui_checkbox, phase_control
             )
             
             self.current_training_logger.info(f"开始{operation}操作")
@@ -395,7 +407,7 @@ class TrainingTab:
     
     def _parse_training_config(self, network_file, demand_file, algorithm, 
                               operation, total_timesteps, num_seconds, 
-                              gui_checkbox) -> BaseConfig:
+                              gui_checkbox, phase_control) -> BaseConfig:
         """解析训练配置"""
         try:
             import shlex
@@ -411,7 +423,8 @@ class TrainingTab:
                 tensorboard_logs="logs",
                 total_timesteps=total_timesteps,
                 num_seconds=num_seconds,
-                gui=use_gui
+                gui=use_gui,
+                phase_control=phase_control
             )
             
             return config

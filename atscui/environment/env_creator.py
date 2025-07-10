@@ -1,4 +1,4 @@
-from mysumo.envs.sumo_env import ContinuousSumoEnv, SumoEnv
+from sumo_core.envs.sumo_env import ContinuousSumoEnv, SumoEnv
 
 
 def createEnv(config):

@@ -14,7 +14,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 from stable_baselines3.dqn.dqn import DQN
-import mysumo.envs  # 确保自定义环境被注册
+import sumo_core.envs  # 确保自定义环境被注册
 import json
 import os
 
@@ -26,7 +26,7 @@ if "SUMO_HOME" in os.environ:
 else:
     sys.exit("Please declare the environment variable 'SUMO_HOME'")
 
-from mysumo.envs.sumo_env import SumoEnv, ContinuousSumoEnv
+from sumo_core.envs.sumo_env import SumoEnv, ContinuousSumoEnv
 
 
 def extract_crossname(path):

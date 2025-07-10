@@ -1,11 +1,9 @@
 import os
 import sys
 
-sys.path.append('../..')
-
-import mysumo
-import mysumo.envs  # 确保自定义环境被注册
-from mysumo import arterial4x4
+import sumo_core
+import sumo_core.envs  # 确保自定义环境被注册
+from sumo_core import arterial4x4
 
 # 创建环境
 env = arterial4x4(out_csv_name="outputs/grid4x4/arterial4x4", use_gui=True, yellow_time=2, fixed_ts=False)

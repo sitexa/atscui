@@ -15,6 +15,7 @@ class BaseConfig:
     render_mode: Optional[str] = None
     operation: Optional[str] = "TRAIN"
     algo_name: Optional[str] = "DQN"
+    phase_control: Optional[str] = "sequential"  # 相位控制模式：sequential或flexible
 
 
 @dataclass
