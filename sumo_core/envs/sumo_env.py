@@ -142,7 +142,7 @@ class BaseSumoEnv(gym.Env):
         else:
             self.cci_weights = cci_weights
         self.cci_threshold = cci_threshold
-        self.current_cci = 0.0
+        self.current_cci = 0.0 # Composite Congestion Index -- 交通拥堵指数
         self.current_control_mode = 'sequential'  # Initial mode
 
         if LIBSUMO:
