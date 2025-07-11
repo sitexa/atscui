@@ -311,3 +311,83 @@
   ### 总结
 
   您遇到的问题非常经典。模型训练收敛得又快又好，不代表它学到了有用的东西。
+
+
+## 现在，我们再回头讨论“顺序执行”相位时，智能体训练的效果问题。根据上面的讨论，我们发现，模型的收敛速度很快，但评估和推理效果很差。你怀疑是奖励函数不合理。请你再仔细研究训练过程，对观测状态和奖励函数进行分析，提出修改建议。
+
+###  问题回顾与核心诊断
+
+
+  我们再次确认，当前问题的核心是：
+   * 训练收敛快但评估效果差：这通常意味着智能体学到了一个“局部最优”但“全局低效”的策略。
+   * “无脑切换”：智能体可能为了获得即时的等待时间减少奖励，而频繁切换相位，忽略了切换成本和整体路
+     口的拥堵情况。
+
+###  奖励函数修改方案（修订版）
+
+  基于您的反馈，我将重新设计 _weighted_sum_reward 函数，使其能够：
+
+   1. 直接惩罚全局排队长度：鼓励智能体关注路口整体的拥堵状况。
+   2. 奖励等待时间减少：保留疏散车辆的积极信号。
+   3. 惩罚不必要的相位切换：利用现有状态变量 self.time_since_last_phase_change 来实现。
+
+  核心思路：
+
+  self.time_since_last_phase_change 变量已经记录了自上次相位变化以来的时间步数。如果这个值为1，就意味着在上一个时间步刚刚发生了相位切换。我们可以利用这个信息来施加切换惩罚，而无需引入新的 last_action_was_change 标志。
+
+  新的 `_weighted_sum_reward` 函数构成：
+
+  我将把 _weighted_sum_reward 定义在 BaseTrafficSignal 类中，并将其设置为 TrafficSignal
+  类的默认奖励函数（当 phase_control 为 sequential 且未指定其他奖励函数时）。
+
+    1 # 在 BaseTrafficSignal 类中
+    2 def _weighted_sum_reward(self):
+    3     # 1. 排队惩罚 (Queue Penalty)
+    4     # 目标：最小化路口所有入口车道的总排队车辆数。
+    5     # 权重：1.0，表示对排队的高度重视。
+    6     queue_penalty = -self.get_total_queued() * 1.0
+    7 
+    8     # 2. 等待时间减少奖励 (Waiting Time Reduction Reward)
+    9     # 目标：鼓励智能体疏散车辆，减少累积等待时间。
+   10     # 注意：self.last_measure 是用于计算等待时间变化的辅助变量，它在每次计算奖励后更新。
+   11     current_ts_wait = sum(self.get_accumulated_waiting_time_per_lane()) / 100.0
+   12     diff_waiting_time_reward = (self.last_measure - current_ts_wait) * 0.5
+   13     self.last_measure = current_ts_wait # 更新 last_measure 以便下次计算
+   14 
+   15     # 3. 相位切换惩罚 (Phase Switching Penalty)
+   16     # 目标：阻止智能体进行不必要的频繁切换。
+   17     # 逻辑：如果 `self.time_since_last_phase_change` 为1，表示上一个时间步发生了相位切换。
+   18     #       此时施加一个固定的负奖励 `self.switching_penalty` (默认0.5)。
+   19     #       这个惩罚是针对“切换行为”本身，而不是切换后的效果。
+   20     switch_penalty = -self.switching_penalty if self.time_since_last_phase_change == 1 else 0
+   21 
+   22     # 综合奖励
+   23     total_reward = queue_penalty + diff_waiting_time_reward + switch_penalty
+   24     return total_reward
+
+
+  修改点总结：
+
+   1. `BaseTrafficSignal` 类：
+       * 在 __init__ 中，保留 self.switching_penalty = 0.5。
+       * 添加新的奖励函数 _weighted_sum_reward，其实现如上所示。
+       * 更新 reward_fns 字典，将 _weighted_sum_reward 添加进去。
+   2. `TrafficSignal` 类：
+       * 在 __init__ 中，当 phase_control 为 'sequential'
+         且未明确指定奖励函数时，将默认奖励函数设置为 _weighted_sum_reward。
+       * set_next_phase 方法无需修改，因为它已经正确地更新了 self.time_since_last_phase_change。
+
+  为什么这个方案更合理？
+
+   * 符合马尔可夫性：所有用于计算奖励的信息都直接来源于当前状态或其直接衍生的辅助变量（如
+     last_measure 和 time_since_last_phase_change），没有引入额外的、非状态的“历史动作”标志。
+   * 解决“无脑切换”：通过 switch_penalty，智能体现在会“感受到”切换的成本。为了最大化总奖励，它必
+     须权衡切换带来的潜在收益（减少排队和等待时间）是否足以抵消切换本身的惩罚。
+   * 鼓励全局优化：queue_penalty
+     强制智能体考虑整个路口的拥堵情况，而不仅仅是当前绿灯方向的局部优化。
+   * 权重可调：queue_penalty 和 diff_waiting_time_reward 的权重（1.0 和 0.5）以及
+     switching_penalty
+     的值（0.5）都是可调的超参数，可以在训练过程中进行微调，以找到最佳的平衡点。
+
+  这个方案旨在通过更精细的奖励信号，引导智能体学习更复杂的策略，使其在“顺序执行”模式下也能做出更
+  智能的决策。

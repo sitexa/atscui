@@ -58,6 +58,7 @@ class BaseTrafficSignal:
         self.last_reward = None
         self.sumo = sumo
         self.phase_control = phase_control
+        self.switching_penalty = 0.5 # New: 切换相位的惩罚。
 
         if isinstance(reward_fn, str):
             if reward_fn in self.reward_fns:
@@ -153,6 +154,22 @@ class BaseTrafficSignal:
         self.last_measure = ts_wait
         return reward
 
+    def _weighted_sum_reward(self): #新的奖励函数
+        # Component 1: 直接惩罚全局排队长度
+        queue_penalty = -self.get_total_queued() * 1.0
+
+        # Component 2: 奖励等待时间减少
+        current_ts_wait = sum(self.get_accumulated_waiting_time_per_lane()) / 100.0
+        diff_waiting_time_reward = (self.last_measure - current_ts_wait) * 0.5
+        self.last_measure = current_ts_wait # Update last_measure for the next step
+
+        # Component 3: 惩罚不必要的相位切换
+        # If time_since_last_phase_change is 1, it means a phase change happened in the last step.
+        switch_penalty = -self.switching_penalty if self.time_since_last_phase_change == 1 else 0
+
+        total_reward = queue_penalty + diff_waiting_time_reward + switch_penalty
+        return total_reward
+
     def _observation_fn_default(self):
         phase_id = [1 if self.green_phase == i else 0 for i in range(self.num_green_phases)]
         min_green = [0 if self.time_since_last_phase_change < self.min_green + self.yellow_time else 1]
@@ -229,6 +246,7 @@ class BaseTrafficSignal:
         "average-speed": _average_speed_reward,
         "queue": _queue_reward,
         "pressure": _pressure_reward,
+        "weighted-sum": _weighted_sum_reward, # New default reward function
     }
 
 
@@ -239,6 +257,9 @@ class TrafficSignal(BaseTrafficSignal):
         super().__init__(*args, **kwargs)
         if self.phase_control == 'sequential':
             self.action_space = spaces.Discrete(2)  # 0: stay, 1: change
+            # Set default reward function for sequential mode if not specified
+            if isinstance(self.reward_fn, str) and self.reward_fn == "diff-waiting-time":
+                self.reward_fn = self.reward_fns["weighted-sum"]
         else:  # flexible
             self.action_space = spaces.Discrete(self.num_green_phases)
 
