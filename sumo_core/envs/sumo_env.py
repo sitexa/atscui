@@ -59,8 +59,9 @@ class BaseSumoEnv(gym.Env):
         fixed_ts (bool): If true, it will follow the phase configuration in the route_file and ignore the actions given in the :meth:`step` method.
         sumo_warnings (bool): If true, it will print SUMO warnings.
         additional_sumo_cmd (str): Additional SUMO command line arguments.
-        phase_control (str): Control mode for the traffic signal phases. Can be 'sequential' or 'flexible'.
         render_mode (str): Mode of rendering. Can be 'human' or 'rgb_array'. Default: None
+        cci_weights (dict): Weights for the Composite Congestion Index (CCI). Default: {'queue': 0.4, 'wait': 0.4, 'speed': 0.2}.
+        cci_threshold (float): Threshold for switching to flexible phase control. Default: 0.6.
     """
 
     metadata = {
@@ -94,8 +95,9 @@ class BaseSumoEnv(gym.Env):
         fixed_ts: bool = False,
         sumo_warnings: bool = True,
         additional_sumo_cmd: Optional[str] = None,
-        phase_control: str = "sequential",
         render_mode: Optional[str] = None,
+        cci_weights: dict = None,
+        cci_threshold: float = 0.6,
     ):
         super().__init__()
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Invalid render mode."
@@ -130,11 +132,18 @@ class BaseSumoEnv(gym.Env):
         self.additional_sumo_cmd = additional_sumo_cmd
         self.add_system_info = add_system_info
         self.add_per_agent_info = add_per_agent_info
-        self.phase_control = phase_control
         self.label = str(BaseSumoEnv.CONNECTION_LABEL)
         BaseSumoEnv.CONNECTION_LABEL += 1
         self.sumo = None
         self.traffic_signal_class = traffic_signal_class
+
+        if cci_weights is None:
+            self.cci_weights = {'queue': 0.4, 'wait': 0.4, 'speed': 0.2}
+        else:
+            self.cci_weights = cci_weights
+        self.cci_threshold = cci_threshold
+        self.current_cci = 0.0
+        self.current_control_mode = 'sequential'  # Initial mode
 
         if LIBSUMO:
             traci.start([sumolib.checkBinary("sumo"), "-n", self._net])
@@ -165,7 +174,7 @@ class BaseSumoEnv(gym.Env):
             self.traffic_signals = {
                 ts: self.traffic_signal_class(
                     self, ts, self.delta_time, self.yellow_time, self.min_green, self.max_green,
-                    self.begin_time, self.reward_fn[ts], conn, self.phase_control
+                    self.begin_time, self.reward_fn[ts], conn
                 )
                 for ts in self.reward_fn.keys()
             }
@@ -173,7 +182,7 @@ class BaseSumoEnv(gym.Env):
             self.traffic_signals = {
                 ts: self.traffic_signal_class(
                     self, ts, self.delta_time, self.yellow_time, self.min_green, self.max_green,
-                    self.begin_time, self.reward_fn, conn, self.phase_control
+                    self.begin_time, self.reward_fn, conn
                 )
                 for ts in self.ts_ids
             }
@@ -364,12 +373,47 @@ class SumoEnv(BaseSumoEnv):
     def __init__(self, **kwargs):
         super().__init__(traffic_signal_class=TrafficSignal, **kwargs)
 
+    def _calculate_cci(self, ts_id):
+        """Calculate the Composite Congestion Index (CCI) for a given traffic signal."""
+        # 1. Max Queue Length
+        max_queue = max(self.traffic_signals[ts_id].get_lanes_queue())
+        norm_queue = min(max_queue / 50.0, 1.0)  # Normalize by a typical max queue
+
+        # 2. Max Waiting Time
+        max_wait = max(self.traffic_signals[ts_id].get_accumulated_waiting_time_per_lane())
+        norm_wait = min(max_wait / 300.0, 1.0)  # Normalize by a typical max wait time
+
+        # 3. Average Speed (inversely related to congestion)
+        avg_speed = self.traffic_signals[ts_id].get_average_speed()
+        # Normalize by max speed (e.g., 15 m/s), invert, and clamp
+        norm_speed_inv = 1.0 - min(avg_speed / 15.0, 1.0)
+
+        # Calculate CCI
+        cci = (
+            self.cci_weights['queue'] * norm_queue
+            + self.cci_weights['wait'] * norm_wait
+            + self.cci_weights['speed'] * norm_speed_inv
+        )
+        return cci
+
     def step(self, action: Union[dict, int]):
         self.step_counter += 1
+
         if self.fixed_ts or action is None or action == {}:
             for _ in range(self.delta_time):
                 self._sumo_step()
         else:
+            # CCI-based dynamic control
+            self.current_cci = self._calculate_cci(self.ts_ids[0]) # Assuming single agent for now
+            if self.current_cci > self.cci_threshold:
+                self.current_control_mode = 'flexible'
+            else:
+                self.current_control_mode = 'sequential'
+
+            # Update traffic signal with the current mode
+            for ts in self.ts_ids:
+                self.traffic_signals[ts].phase_control = self.current_control_mode
+
             self._apply_actions(action)
             self._run_steps()
 

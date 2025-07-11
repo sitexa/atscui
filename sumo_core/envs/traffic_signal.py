@@ -42,7 +42,6 @@ class BaseTrafficSignal:
         begin_time: int,
         reward_fn: Union[str, Callable],
         sumo,
-        phase_control: str = "flexible",
     ):
         self.id = ts_id
         self.env = env
@@ -57,7 +56,6 @@ class BaseTrafficSignal:
         self.last_measure = 0.0
         self.last_reward = None
         self.sumo = sumo
-        self.phase_control = phase_control
         self.switching_penalty = 0.5 # New: 切换相位的惩罚。
 
         if isinstance(reward_fn, str):
@@ -68,8 +66,6 @@ class BaseTrafficSignal:
         else:
             self.reward_fn = reward_fn
 
-        self.observation_fn = self.env.observation_class(self)
-
         self._build_phases()
 
         self.lanes = list(
@@ -79,7 +75,14 @@ class BaseTrafficSignal:
         self.out_lanes = list(set(self.out_lanes))
         self.lanes_length = {lane: self.sumo.lane.getLength(lane) for lane in self.lanes + self.out_lanes}
 
-        self.observation_space = self.observation_fn.observation_space()
+        self.observation_fn = self.env.observation_class(self)
+
+        # Extend the observation space to include CCI and control mode
+        original_space = self.observation_fn.observation_space()
+        low = np.append(original_space.low, [0, 0])
+        high = np.append(original_space.high, [1, 1])
+        self.observation_space = spaces.Box(low=low, high=high, dtype=original_space.dtype)
+
         self.action_space = None  # To be defined by subclasses
 
     def _build_phases(self):
@@ -255,16 +258,14 @@ class TrafficSignal(BaseTrafficSignal):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.phase_control == 'sequential':
-            self.action_space = spaces.Discrete(2)  # 0: stay, 1: change
-            # Set default reward function for sequential mode if not specified
-            if isinstance(self.reward_fn, str) and self.reward_fn == "diff-waiting-time":
-                self.reward_fn = self.reward_fns["weighted-sum"]
-        else:  # flexible
-            self.action_space = spaces.Discrete(self.num_green_phases)
+        # Action space depends on the current control mode, which is dynamic
+        # For sequential, it's 2 (stay/change)
+        # For flexible, it's num_green_phases
+        # We set it to the maximum possible for now, and it will be handled dynamically
+        self.action_space = spaces.Discrete(max(2, self.num_green_phases)) 
 
     def set_next_phase(self, action: int):
-        if self.phase_control == 'sequential':
+        if self.env.current_control_mode == 'sequential':
             is_change_action = (action == 1)
             is_min_green_passed = (self.time_since_last_phase_change >= self.yellow_time + self.min_green)
 

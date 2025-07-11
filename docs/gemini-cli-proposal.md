@@ -391,3 +391,175 @@
 
   这个方案旨在通过更精细的奖励信号，引导智能体学习更复杂的策略，使其在“顺序执行”模式下也能做出更
   智能的决策。
+
+
+## 目前我还不能准确理解评估结果，从而无法评价模型的好坏。因为添加了“顺序执行”相位，就产生了新问题，不管其他方向状态如何，都必须以固定相序执行。这与之前的“变序执行”形成了反差。“变序执行”是指在实际交通控制中，为了避免因车辆突然变道而导致的交通拥堵，而临时放宽相位的执行时间，以确保车辆能够安全通过。这个过程中，车辆的变道行为是随机的，不受相位控制的影响。而“顺序执行”则是指相位严格按照规定的顺序执行，车辆变道行为是受相位控制的。
+
+✦ 您提出的想法非常深刻且切合实际。确实，单纯的“顺序执行”不够智能，而“变序执行”在常规交通下又显得
+  过于激进。将两者结合，设计一个能够根据交通状况自动切换控制模式的“混合策略”，是通向更高级、更实
+  用智能交通控制的关键一步。
+
+
+  这个想法完全可行。我们可以设计一个基于阈值的混合控制策略 (Threshold-based Hybrid Control 
+  Strategy)。
+
+  方案设计
+
+
+  核心思想是：让环境（SumoEnv）本身变得更智能。在每个决策点，环境首先自我评估当前的拥堵状况。
+   * 如果交通顺畅（低于阈值），则限制智能体只能按顺序选择下一个相位（sequential模式）。
+   * 如果交通拥堵（超过阈值），则“解锁”所有可能的相位，允许智能体自由选择最优相位来疏解拥堵（flex
+     ible模式）。
+
+  这样，智能体在训练中就能学会：在不同拥堵水平下，采用最合适的策略。
+
+  实施步骤
+
+  1. 定义拥堵阈值
+
+
+  这是最关键的一步。我们需要一个或多个量化指标来判断“拥堵”程度。以下是几个可行的选项，我们可以
+  从简单到复杂进行尝试：
+
+
+   * A) 最大排队长度 (Max Queue Length):
+       * 逻辑:
+         监测所有进口车道，如果其中任何一条车道的排队车辆数（停止的车辆数）超过了设定的阈值（例如
+         15 辆车），就认为路口进入拥堵状态。
+       * 优点: 非常直观，易于实现和理解，直接反映了物理拥堵情况。
+       * 缺点: 可能对瞬间的车辆聚集过于敏感。
+
+
+   * B) 最大累积等待时间 (Max Accumulated Waiting Time):
+       * 逻辑: 监测所有进口车道，如果任何一条车道队首车辆的累积等待时间超过了阈值（例如 60
+         秒），则认为出现了严重延误。
+       * 优点: 能很好地反映驾驶员的体验，避免某方向车辆等待过久。
+       * 缺点: 实现起来比排队长度稍复杂。
+
+
+   * C) 综合拥堵指数 (Composite Congestion Index):
+       * 逻辑: 结合多个指标（如平均排队长度、平均等待时间、路口通行量等）加权计算出一个综合分数。
+         当分数超过阈值时，切换模式。
+       * 优点: 最全面、最鲁棒，能更准确地反映整体拥堵水平。
+       * 缺点: 设计和调试权重参数比较复杂。
+
+  建议: 我们从最直观、最容易实现的 A) 最大排队长度 开始。这是一个非常有效的拥堵判断依据。
+
+  2. 实现动态切换逻辑
+
+
+  我们需要修改环境的核心文件 sumo_core/envs/sumo_env.py。
+
+  具体的修改点在 SumoEnv 类的 step 方法内。当前的逻辑是基于初始化时传入的 phase_control
+  参数来决定相位切换方式。我们需要将其改为动态判断。
+
+  修改方案如下:
+
+
+   1. 在 SumoEnv 的 __init__ 方法中，增加一个新的参数 congestion_threshold，并设定一个默认的
+      control_mode 为 sequential。
+   2. 在 step 方法的开始部分，即智能体执行动作（action）之前，增加以下逻辑：
+       * 调用 traci 接口获取当前所有进口车道的排队车辆数。
+       * 找到最大的排队数 max_queue = max(all_lane_queues)。
+       * 进行判断：
+
+
+   1         if max_queue > self.congestion_threshold:
+   2             # 如果超过阈值，临时切换到 flexible 模式
+   3             current_phase_control = 'flexible'
+   4         else:
+   5             # 否则，保持/切换回 sequential 模式
+   6             current_phase_control = 'sequential'
+
+       * 后续的获取可用动作、执行动作等逻辑，都基于这个动态计算出的 current_phase_control
+         来执行。
+
+  3. 训练与评估
+
+
+  采用这种混合策略后，智能体在训练时会经历两种模式。它将学到一个更高级的策略：
+   * 在交通畅通时，它会学习在固定的顺序下，何时是切换相位的最佳时机。
+   * 当拥堵发生时，它会学习如何利用“变序”的权力，最快地疏解掉拥堵的车流。
+
+
+  最终得到的模型，将远比单一模式下的模型更加智能和实用。
+
+  下一步行动
+
+  如果您同意这个方案，我将开始修改 sumo_core/envs/sumo_env.py 文件来实现这个混合控制策略。
+
+
+  我们需要首先确定一个初始的阈值，例如 “任何一条车道排队车辆超过15辆时，就切换到flexible模式”。
+
+═════════════════════════════════════════════════════════════════════════════════
+
+###    方案：基于综合拥堵指数的混合控制策略
+
+   1. 定义综合拥堵指数 (CCI)
+      我们将结合三个关键的交通指标来计算CCI，每个指标都会被归一化（Normalization）到 [0, 1]
+  区间，然后进行加权求和。
+
+
+       * 最大排队长度 (Max Queue Length): 反映物理拥堵。
+       * 最大等待时间 (Max Waiting Time): 反映驾驶员的负面体验。
+       * 平均速度 (Average Speed): 反映路网的整体通行效率。
+
+
+      CCI 计算公式:
+
+   1     CCI = w_q * norm_queue + w_w * norm_wait + w_s * norm_speed_inv
+
+       * w_q, w_w, w_s 是各自的权重，总和为1。
+       * norm_queue: 归一化的最大排队长度。
+       * norm_wait: 归一化的最大等待时间。
+       * norm_speed_inv: 归一化的速度倒数（速度越低，该值越高，对拥堵指数贡献越大）。
+
+
+   2. 修改 `SumoEnv`
+      我将修改 sumo_core/envs/sumo_env.py 文件，在 SumoEnv 类中实现以下功能：
+       * 在 __init__ 方法中，增加CCI相关的配置参数，如 权重 和 拥堵阈值。
+       * 创建一个新的私有方法 _calculate_cci()，用于在每一步计算当前的CCI值。
+       * 修改 step() 方法，在每次执行动作前，调用
+         _calculate_cci()，并根据CCI值与阈值的比较结果，动态决定是采用 sequential 还是 flexible
+         模式。
+       * 将计算出的CCI值和当前的控制模式也加入到返回给智能体的观测值（Observation）中，这样智能体
+         不仅知道当前路况，还能知道自己处于哪种“权限模式”下，从而学习更精细的策略。
+
+
+   3. 实施
+
+  Here is the plan:
+
+
+   1. Introduce CCI parameters in `BaseSumoEnv.__init__`: Add cci_weights (a dictionary for queue,
+      wait, and speed) and cci_threshold to the constructor.
+   2. Add a `_calculate_cci` method to `BaseSumoEnv`: This method will compute the CCI based on the
+      formula discussed. It will fetch the required data (queue, wait time, speed), normalize them,
+      and apply the weights.
+   3. Modify `SumoEnv.step`: This is the core of the change. Before applying an action, it will
+      call _calculate_cci. Based on the returned CCI value, it will dynamically set the
+      phase_control mode for the traffic signals for the current step.
+   4. Update Observation Space: The observation space will be extended to include the calculated
+      CCI and an indicator for the current control mode (0 for sequential, 1 for flexible). This
+      gives the agent more context. I'll modify the DefaultObservationFunction to accommodate this.
+
+
+  To summarize the changes:
+
+
+   1. `sumo_core/envs/sumo_env.py`:
+       * The BaseSumoEnv now accepts cci_weights and cci_threshold parameters.
+       * A _calculate_cci method has been added to compute the congestion index.
+       * The SumoEnv.step method now dynamically switches between sequential and flexible control
+         based on the CCI.
+   2. `sumo_core/envs/observations.py`:
+       * The DefaultObservationFunction now includes the current CCI value and an indicator for
+         the active control mode (sequential/flexible) in the observation vector returned to the
+         agent.
+       * The observation space has been expanded accordingly.
+
+
+  The system is now ready. You can start a new training run, and the agent will learn to operate
+   using this new hybrid strategy. It will be trained to understand not just the traffic state,
+  but also the context of its current control authority (sequential or flexible), and act
+  accordingly.

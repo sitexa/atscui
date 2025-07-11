@@ -44,7 +44,12 @@ class DefaultObservationFunction(ObservationFunction):
         min_green = [0 if self.ts.time_since_last_phase_change < self.ts.min_green + self.ts.yellow_time else 1]
         density = self.ts.get_lanes_density()
         queue = self.ts.get_lanes_queue()
-        observation = np.array(phase_id + min_green + density + queue, dtype=np.float32)
+        
+        # Add CCI and control mode to the observation
+        cci = self.ts.env.current_cci
+        control_mode = 1 if self.ts.env.current_control_mode == 'flexible' else 0
+        
+        observation = np.array(phase_id + min_green + density + queue + [cci, control_mode], dtype=np.float32)
         logger.debug("@@@@@@@@@@DefaultObservationFunction.__call__ end@@@@@@@@@@")
         return observation
 
