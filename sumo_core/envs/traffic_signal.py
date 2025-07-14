@@ -86,39 +86,62 @@ class BaseTrafficSignal:
         self.action_space = None  # To be defined by subclasses
 
     def _build_phases(self):
-        phases = self.sumo.trafficlight.getAllProgramLogics(self.id)[0].phases
-        if self.env.fixed_ts:
-            self.num_green_phases = len(phases) // 2
-            return
+        """Correctly builds traffic signal phases from the SUMO .net.xml file."""
+        # Get all program logics for the traffic signal
+        programs = self.sumo.trafficlight.getAllProgramLogics(self.id)
+        if not programs:
+            raise ValueError(f"No program logic found for traffic light {self.id}")
+
+        # We use the first program (usually programID '0' or 'default')
+        logic = programs[0]
+        phases = logic.phases
 
         self.green_phases = []
         self.yellow_dict = {}
+
+        # First pass: identify all unique green phases
         for phase in phases:
             state = phase.state
-            if "y" not in state and (state.count("r") + state.count("s") != len(state)):
-                self.green_phases.append(self.sumo.trafficlight.Phase(self.max_green, state))
+            # A green phase contains 'G' or 'g' and does not contain 'y'
+            if ('G' in state or 'g' in state) and 'y' not in state:
+                # Avoid adding duplicate green phases if the logic contains them
+                if state not in [p.state for p in self.green_phases]:
+                    self.green_phases.append(phase)
+        
         self.num_green_phases = len(self.green_phases)
         self.all_phases = self.green_phases.copy()
 
+        # Second pass: build the yellow phase dictionary
+        # This part is crucial for smooth transitions between green phases
         for i, p1 in enumerate(self.green_phases):
             for j, p2 in enumerate(self.green_phases):
                 if i == j:
                     continue
                 yellow_state = ""
-                for s in range(len(p1.state)):
-                    if (p1.state[s] == "G" or p1.state[s] == "g") and (p2.state[s] == "r" or p2.state[s] == "s"):
-                        yellow_state += "y"
+                for s_idx in range(len(p1.state)):
+                    # If a light was green in p1 and is red in p2, it should be yellow
+                    if (p1.state[s_idx] in 'Gg') and (p2.state[s_idx] in 'r'):
+                        yellow_state += 'y'
                     else:
-                        yellow_state += p1.state[s]
-                self.yellow_dict[(i, j)] = len(self.all_phases)
-                self.all_phases.append(self.sumo.trafficlight.Phase(self.yellow_time, yellow_state))
+                        yellow_state += p1.state[s_idx]
+                
+                # Check if this yellow state already exists
+                if yellow_state not in [p.state for p in self.all_phases]:
+                    self.yellow_dict[(i, j)] = len(self.all_phases)
+                    self.all_phases.append(self.sumo.trafficlight.Phase(self.yellow_time, yellow_state))
+                else:
+                    # Find existing yellow phase index
+                    for idx, p in enumerate(self.all_phases):
+                        if p.state == yellow_state:
+                            self.yellow_dict[(i, j)] = idx
+                            break
 
-        programs = self.sumo.trafficlight.getAllProgramLogics(self.id)
-        logic = programs[0]
-        logic.type = 0
+        # Ensure the logic Sumo uses is updated with our parsed phases
+        # This is important if the original file had a different structure
         logic.phases = self.all_phases
         self.sumo.trafficlight.setProgramLogic(self.id, logic)
-        self.sumo.trafficlight.setRedYellowGreenState(self.id, self.all_phases[0].state)
+        # Set the initial state to the first green phase
+        self.sumo.trafficlight.setRedYellowGreenState(self.id, self.green_phases[0].state)
 
     @property
     def time_to_act(self):
