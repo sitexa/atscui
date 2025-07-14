@@ -220,6 +220,42 @@ class BaseTrafficSignal:
         # 3. 返回最终回报
         return pressure_reward - switch_penalty
 
+    def _pressure_reward_v3(self):
+        """Computes the pressure reward based ONLY on the queue of lanes with a red light."""
+        # 1. 计算红灯压力
+        try:
+            current_phase_state = self.green_phases[self.green_phase].state
+        except IndexError:
+            return -100  # Return a large penalty
+
+        red_lanes_queue = 0
+        lanes_queue = self.get_lanes_queue()
+        
+        controlled_links = self.sumo.trafficlight.getControlledLinks(self.id)
+        lane_to_state_index = {}
+        link_index = 0
+        for links in controlled_links:
+            if links:
+                lane = links[0][0]
+                if lane not in lane_to_state_index:
+                    lane_to_state_index[lane] = link_index
+                    link_index += 1
+
+        for i, lane_id in enumerate(self.lanes):
+            if lane_id in lane_to_state_index:
+                state_index = lane_to_state_index[lane_id]
+                if state_index < len(current_phase_state):
+                    light_state = current_phase_state[state_index]
+                    if light_state.lower() != 'g':
+                        red_lanes_queue += lanes_queue[i]
+
+        # 2. 引入切换惩罚
+        switch_penalty = self.switching_penalty if self.time_since_last_phase_change == 1 else 0
+
+        # 3. 返回最终回报 (只包含红灯压力和切换惩罚)
+        # Pressure is a penalty, so it should be negative.
+        return (red_lanes_queue * -1) - switch_penalty
+
     def _weighted_sum_reward(self): #新的奖励函数
         # Component 1: 直接惩罚全局排队长度
         queue_penalty = -self.get_total_queued() * 1.0
@@ -312,8 +348,9 @@ class BaseTrafficSignal:
         "average-speed": _average_speed_reward,
         "queue": _queue_reward,
         "pressure": _pressure_reward,
-        "pressure_v2": _pressure_reward_v2,  # New pressure reward
-        "weighted-sum": _weighted_sum_reward, # New default reward function
+        "pressure_v2": _pressure_reward_v2,
+        "pressure_v3": _pressure_reward_v3,  # Register new function
+        "weighted-sum": _weighted_sum_reward,
     }
 
 
