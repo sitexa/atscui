@@ -158,31 +158,22 @@ class BaseTrafficSignal:
         return reward
 
     def _pressure_reward_v2(self):
-        """Computes the pressure reward based on the difference in queue between red and green lanes."""
-        # Get the state of the current green phase (e.g., 'GrGrGrGr')
+        """Computes the pressure reward and applies a penalty for switching phases."""
+        # 1. 计算基础的压力回报
         try:
             current_phase_state = self.green_phases[self.green_phase].state
         except IndexError:
-            # Fallback or error handling if green_phase is out of bounds
-            return -1  # Return a default penalty
+            return -1  # Fallback for invalid phase
 
         green_lanes_queue = 0
         red_lanes_queue = 0
-
-        # Get queue on each controlled lane, already normalized between 0 and 1
         lanes_queue = self.get_lanes_queue()
-
-        # Create a mapping from lane to its index in the phase state string
-        # This mapping is crucial and depends on how SUMO orders the links
-        # Note: This assumes a consistent mapping between controlled lanes and phase state characters
         controlled_links = self.sumo.trafficlight.getControlledLinks(self.id)
-        
-        # A more robust way to map lanes to their state index
+
         lane_to_state_index = {}
         link_index = 0
         for links in controlled_links:
-            if links:  # Check if the list of links is not empty
-                # A single signal can control multiple links, we use the first incoming lane of the first link
+            if links:
                 lane = links[0][0]
                 if lane not in lane_to_state_index:
                     lane_to_state_index[lane] = link_index
@@ -193,13 +184,18 @@ class BaseTrafficSignal:
                 state_index = lane_to_state_index[lane_id]
                 if state_index < len(current_phase_state):
                     light_state = current_phase_state[state_index]
-                    # 'G' and 'g' are green, everything else is considered red for pressure calculation
                     if light_state.lower() == 'g':
                         green_lanes_queue += lanes_queue[i]
                     else:
                         red_lanes_queue += lanes_queue[i]
-        
-        return red_lanes_queue - green_lanes_queue
+
+        pressure_reward = red_lanes_queue - green_lanes_queue
+
+        # 2. 引入切换惩罚
+        switch_penalty = self.switching_penalty if self.time_since_last_phase_change == 1 else 0
+
+        # 3. 返回最终回报
+        return pressure_reward - switch_penalty
 
     def _weighted_sum_reward(self): #新的奖励函数
         # Component 1: 直接惩罚全局排队长度
