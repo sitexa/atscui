@@ -371,6 +371,8 @@ class SumoEnv(BaseSumoEnv):
     """SUMO Environment for Traffic Signal Control with discrete actions."""
 
     def __init__(self, **kwargs):
+        if 'reward_fn' not in kwargs:
+            kwargs['reward_fn'] = 'pressure_v2'
         super().__init__(traffic_signal_class=TrafficSignal, **kwargs)
 
     def _calculate_cci(self, ts_id):
