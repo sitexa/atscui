@@ -146,9 +146,9 @@ def main():
     # 定义要测试的模型
     models = [
         ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-DQN.zip", "DQN"),
-        ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-SAC.zip", "SAC"),
-        ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-PPO.zip", "PPO"),
-        ("/Users/xnpeng/sumoptis/atscui/models/zszx-2-model-SAC.zip", "SAC"),
+        # ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-SAC.zip", "SAC"),
+        # ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-PPO.zip", "PPO"),
+        # ("/Users/xnpeng/sumoptis/atscui/models/zszx-2-model-SAC.zip", "SAC"),
     ]
     
     success_count = 0

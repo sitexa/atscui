@@ -13,7 +13,7 @@ from atscui.models.agent_creator import AgentFactory, createAgent
 from atscui.utils.file_utils import file_manager, extract_crossname_from_netfile, ensure_dir
 from atscui.utils.utils import common_utils, utility_manager
 from atscui.utils.visualization import plot_process, plot_predict
-from atscui.run_model import run_model
+from atscui.test_run_model import run_model
 from atscui.exceptions import (
     TrainingError, EnvironmentError, ModelError, 
     FileOperationError, ValidationError, ConfigurationError

@@ -397,10 +397,10 @@ def generate_realistic_scenarios(obs_dim: int = 45):
     elif obs_dim == 45:
         # 45维场景 (包含CCI和控制模式)
         scenarios = {
-            "空闲时段": np.array([1, 0, 0, 0, 1] + [0.1] * 20 + [0.05] * 20 + [0.2, 0], dtype=np.float32),
-            "高峰时段": np.array([0, 1, 0, 0, 1] + [0.8] * 20 + [0.9] * 20 + [0.8, 1], dtype=np.float32),
-            "不均衡流量": np.array([0, 0, 1, 0, 1] + [0.9, 0.2, 0.8, 0.1] * 5 + [0.8, 0.1, 0.7, 0.05] * 5 + [0.6, 0], dtype=np.float32),
-            "紧急情况": np.array([0, 0, 0, 1, 0] + [0.95] * 20 + [0.98] * 20 + [0.9, 1], dtype=np.float32)
+            "空闲时段": np.array([1, 0, 0, 0, 1] + [0.1] * 19 + [0.05] * 19 + [0.2, 0], dtype=np.float32),
+            "高峰时段": np.array([0, 1, 0, 0, 1] + [0.8] * 19 + [0.9] * 19 + [0.8, 1], dtype=np.float32),
+            "不均衡流量": np.array([0, 0, 1, 0, 1] + ([0.9, 0.2, 0.8, 0.1] * 5)[:19] + ([0.8, 0.1, 0.7, 0.05] * 5)[:19] + [0.6, 0], dtype=np.float32),
+            "紧急情况": np.array([0, 0, 0, 1, 0] + [0.95] * 19 + [0.98] * 19 + [0.9, 1], dtype=np.float32)
         }
     else:
         # 其他维度，生成简化场景
@@ -606,9 +606,9 @@ def main():
     # 2. 测试可用的模型
     models_to_test = [
         ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-DQN.zip", "DQN"),
-        ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-SAC.zip", "SAC"),
-        ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-PPO.zip", "PPO"),
-        ("/Users/xnpeng/sumoptis/atscui/models/zszx-2-model-SAC.zip", "SAC"),
+        # ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-SAC.zip", "SAC"),
+        # ("/Users/xnpeng/sumoptis/atscui/models/zfdx-model-PPO.zip", "PPO"),
+        # ("/Users/xnpeng/sumoptis/atscui/models/zszx-2-model-SAC.zip", "SAC"),
     ]
     
     for model_path, algo_name in models_to_test:
