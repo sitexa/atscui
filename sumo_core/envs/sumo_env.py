@@ -98,6 +98,9 @@ class BaseSumoEnv(gym.Env):
         render_mode: Optional[str] = None,
         cci_weights: dict = None,
         cci_threshold: float = 0.6,
+        use_dynamic_flows: bool = False,
+        flows_rate: int = 15,
+        dynamic_start_time: int = 99999,
     ):
         super().__init__()
         assert render_mode is None or render_mode in self.metadata["render_modes"], "Invalid render mode."
@@ -136,6 +139,21 @@ class BaseSumoEnv(gym.Env):
         BaseSumoEnv.CONNECTION_LABEL += 1
         self.sumo = None
         self.traffic_signal_class = traffic_signal_class
+
+        self.use_dynamic_flows = use_dynamic_flows
+        self.flows_rate = flows_rate
+        self.dynamic_start_time = dynamic_start_time
+        self.vehicle_id_counter = 0
+        self._route_ids = []
+        if self.use_dynamic_flows:
+            # When using dynamic flows, the route file should only contain <route> definitions.
+            # <vehicle> and <flow> definitions will be ignored by SUMO if not referenced, but it's cleaner to omit them.
+            self._route_ids = [route.getAttribute("id") for route in sumolib.xml.parse(self._route, ["route"])]
+            if not self._route_ids:
+                raise ValueError(
+                    "Dynamic flows are enabled, but no routes are defined in the route file. "
+                    "Please add <route> definitions to your .rou.xml file."
+                )
 
         if cci_weights is None:
             self.cci_weights = {'queue': 0.4, 'wait': 0.4, 'speed': 0.2}
@@ -303,7 +321,30 @@ class BaseSumoEnv(gym.Env):
     def action_spaces(self, ts_id: str) -> gym.spaces.Discrete:
         return self.traffic_signals[ts_id].action_space
 
+    def _generate_vehicles(self):
+        """Generates vehicles dynamically based on random probability, after a certain time."""
+        # 只有当 use_dynamic_flows 为 True 且当前仿真时间达到切换点时，才执行
+        if not self.use_dynamic_flows or self.sim_step < self.dynamic_start_time:
+            return
+
+        # Generate a vehicle with a probability of 1/flows_rate every second
+        # The random generator is seeded in the reset method
+        if self.np_random.integers(0, self.flows_rate) == 0:
+            # Choose a random route
+            random_route_id = self.np_random.choice(self._route_ids)
+
+            # Add the vehicle
+            veh_id = f"dyn_veh_{self.vehicle_id_counter}"
+            try:
+                self.sumo.vehicle.add(veh_id, random_route_id, typeID="DEFAULT_VEHTYPE")
+                self.vehicle_id_counter += 1
+            except traci.TraCIException as e:
+                # This can happen if the simulation is too crowded
+                logger.warning(f"Error adding vehicle {veh_id}: {e}")
+
     def _sumo_step(self):
+        if self.use_dynamic_flows:
+            self._generate_vehicles()
         self.sumo.simulationStep()
 
     def _get_system_info(self):

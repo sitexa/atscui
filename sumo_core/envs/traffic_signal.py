@@ -76,12 +76,7 @@ class BaseTrafficSignal:
         self.lanes_length = {lane: self.sumo.lane.getLength(lane) for lane in self.lanes + self.out_lanes}
 
         self.observation_fn = self.env.observation_class(self)
-
-        # Extend the observation space to include CCI and control mode
-        original_space = self.observation_fn.observation_space()
-        low = np.append(original_space.low, [0, 0])
-        high = np.append(original_space.high, [1, 1])
-        self.observation_space = spaces.Box(low=low, high=high, dtype=original_space.dtype)
+        self.observation_space = self.observation_fn.observation_space
 
         self.action_space = None  # To be defined by subclasses
 

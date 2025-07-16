@@ -51,14 +51,52 @@ class ConfigManager:
                         value=config.net_file
                     )
             
+            # 验证路由文件
             if hasattr(config, 'rou_file') and config.rou_file:
-                if not os.path.exists(config.rou_file):
+                # rou_file 现在可能是一个目录，如果使用课程学习
+                if not config.use_curriculum_learning and not os.path.exists(config.rou_file):
                     raise ValidationError(
                         f"路由文件不存在",
                         field_name='rou_file',
                         value=config.rou_file
                     )
             
+            # 验证课程学习参数
+            if hasattr(config, 'use_curriculum_learning') and config.use_curriculum_learning:
+                if not hasattr(config, 'base_template_rou_file') or not config.base_template_rou_file:
+                    raise ValidationError(
+                        f"使用课程学习时，路线模板文件不能为空",
+                        field_name='base_template_rou_file',
+                        value=config.base_template_rou_file
+                    )
+                if not os.path.exists(config.base_template_rou_file):
+                    raise ValidationError(
+                        f"路线模板文件不存在",
+                        field_name='base_template_rou_file',
+                        value=config.base_template_rou_file
+                    )
+                
+                if not hasattr(config, 'static_phase_ratio') or not (0.1 <= config.static_phase_ratio <= 1.0):
+                    raise ValidationError(
+                        f"静态阶段时长占比必须在0.1到1.0之间",
+                        field_name='static_phase_ratio',
+                        value=config.static_phase_ratio
+                    )
+                
+                if not hasattr(config, 'base_flow_rate') or not (config.base_flow_rate > 0):
+                    raise ValidationError(
+                        f"基础流率必须大于0",
+                        field_name='base_flow_rate',
+                        value=config.base_flow_rate
+                    )
+                
+                if not hasattr(config, 'dynamic_flows_rate') or not (config.dynamic_flows_rate > 0):
+                    raise ValidationError(
+                        f"动态阶段生成速率必须大于0",
+                        field_name='dynamic_flows_rate',
+                        value=config.dynamic_flows_rate
+                    )
+
             # 验证算法名称
             if hasattr(config, 'algo_name'):
                 valid_algorithms = ['DQN', 'PPO', 'A2C', 'SAC']
@@ -201,10 +239,10 @@ class ConfigManager:
     
     def create_default_configs(self):
         """创建默认配置模板"""
-        from atscui.config.base_config import TrainingConfig, RunningConfig
+        from atscui.config.base_config import AlgorithmConfig, RunningConfig
         
         # 默认训练配置
-        default_training = TrainingConfig(
+        default_training = AlgorithmConfig(
             net_file="xgzd/net/xgzd.net.xml",
             rou_file="xgzd/net/xgzd-perhour.rou.xml",
             csv_path="outs/default-DQN",

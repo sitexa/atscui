@@ -3,7 +3,7 @@ from typing import Any, Dict, Tuple, Optional
 from pathlib import Path
 import time
 
-from atscui.config import TrainingConfig
+from atscui.config import AlgorithmConfig
 from atscui.exceptions import ModelError, TrainingError
 from atscui.logging_manager import get_logger
 
@@ -15,7 +15,7 @@ class BaseAgent(ABC):
     所有具体的算法智能体都应该继承此类。
     """
     
-    def __init__(self, env, config: TrainingConfig):
+    def __init__(self, env, config: AlgorithmConfig):
         self.env = env
         self.config = config
         self.logger = get_logger(f'agent_{config.algo_name}')

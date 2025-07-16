@@ -24,40 +24,58 @@ class ObservationFunction:
         """Subclasses must override this method."""
         pass
 
+    @property
     @abstractmethod
-    def observation_space(self):
+    def observation_space(self) -> spaces.Space:
         """Subclasses must override this method."""
         pass
 
 
 class DefaultObservationFunction(ObservationFunction):
-    """Default observation function for traffic signals."""
+    """
+    Default observation function for traffic signals.
+    This class is re-designed to be robust and ensure observation space and vector dimensions always match.
+    """
 
     def __init__(self, ts: TrafficSignal):
         """Initialize default observation function."""
         super().__init__(ts)
+        # The shape is no longer pre-calculated here to avoid state inconsistencies.
 
-    def __call__(self) -> np.ndarray:
-        """Return the default observation."""
-        logger.debug("@@@@@@@@@@DefaultObservationFunction.__call__ begin@@@@@@@@@@")
-        phase_id = [1 if self.ts.green_phase == i else 0 for i in range(self.ts.num_green_phases)]  # one-hot encoding
-        min_green = [0 if self.ts.time_since_last_phase_change < self.ts.min_green + self.ts.yellow_time else 1]
+    def _get_observation_components(self):
+        """A helper method to compute all components of the observation vector.
+        This ensures the logic is shared between __call__ and observation_space.
+        """
+        phase_id = [1 if self.ts.green_phase == i else 0 for i in range(self.ts.num_green_phases)]
+        min_green = [1 if self.ts.time_since_last_phase_change >= self.ts.min_green + self.ts.yellow_time else 0]
         density = self.ts.get_lanes_density()
         queue = self.ts.get_lanes_queue()
         
         # Add CCI and control mode to the observation
+        # These values are managed by the SumoEnv and are available on self.ts.env
         cci = self.ts.env.current_cci
         control_mode = 1 if self.ts.env.current_control_mode == 'flexible' else 0
         
-        observation = np.array(phase_id + min_green + density + queue + [cci, control_mode], dtype=np.float32)
-        logger.debug("@@@@@@@@@@DefaultObservationFunction.__call__ end@@@@@@@@@@")
-        return observation
+        return phase_id + min_green + density + queue + [cci, control_mode]
 
+    def __call__(self) -> np.ndarray:
+        """Return the default observation vector."""
+        components = self._get_observation_components()
+        return np.array(components, dtype=np.float32)
+
+    @property
     def observation_space(self) -> spaces.Box:
-        """Return the observation space."""
+        """Return the observation space.
+        The space is dynamically calculated on each access to ensure it's always up-to-date.
+        """
+        # By calling the same helper, we guarantee the shape is always correct.
+        obs_components = self._get_observation_components()
+        obs_shape = (len(obs_components),)
+        
         return spaces.Box(
-            low=np.zeros(self.ts.num_green_phases + 1 + 2 * len(self.ts.lanes), dtype=np.float32),
-            high=np.ones(self.ts.num_green_phases + 1 + 2 * len(self.ts.lanes), dtype=np.float32),
+            low=np.zeros(obs_shape, dtype=np.float32),
+            high=np.ones(obs_shape, dtype=np.float32),
+            dtype=np.float32,
         )
 
 """

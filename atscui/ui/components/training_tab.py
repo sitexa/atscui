@@ -7,7 +7,7 @@ import json
 import traceback
 from typing import Dict, Any, Optional, Tuple, Generator, Iterator
 
-from atscui.config.base_config import TrainingConfig, RunningConfig, DQNConfig, PPOConfig, A2CConfig, SACConfig, BaseConfig
+from atscui.config.base_config import AlgorithmConfig, RunningConfig, DQNConfig, PPOConfig, A2CConfig, SACConfig, BaseConfig
 from atscui.environment.env_creator import createEnv
 from atscui.models.agent_creator import AgentFactory, createAgent
 from atscui.utils.file_utils import file_manager, extract_crossname_from_netfile, ensure_dir
@@ -73,11 +73,19 @@ class ParameterParser:
     
     def _validate_required_params(self, params: Dict[str, Any]) -> None:
         """验证必需参数"""
-        required_params = ['net_file', 'rou_file', 'algo_name', 'operation']
+        required_params = ['net_file', 'algo_name', 'operation']
         
         for param in required_params:
             if not params.get(param):
                 raise ValidationError(f"必需参数缺失: {param}")
+        
+        # 根据是否使用课程学习来验证rou_file或curriculum_template_file
+        if params.get('use_curriculum_learning'):
+            if not params.get('curriculum_template_file'):
+                raise ValidationError("使用课程学习时，路线模板文件 (curriculum_template_file) 不能为空")
+        else:
+            if not params.get('rou_file'):
+                raise ValidationError("必需参数缺失: rou_file")
     
     def _validate_file_paths(self, params: Dict[str, Any]) -> None:
         """验证文件路径"""
@@ -85,9 +93,16 @@ class ParameterParser:
         if params.get('net_file'):
             utility_manager.validate_file_path(params['net_file'], must_exist=True)
         
-        # 验证路由文件
-        if params.get('rou_file'):
-            utility_manager.validate_file_path(params['rou_file'], must_exist=True)
+        # 根据是否使用课程学习来验证路由文件或模板文件
+        if params.get('use_curriculum_learning'):
+            if params.get('curriculum_template_file'):
+                utility_manager.validate_file_path(params['curriculum_template_file'], must_exist=True)
+            else:
+                raise ValidationError("使用课程学习时，路线模板文件不能为空")
+        else:
+            # 验证路由文件 (非课程学习模式)
+            if params.get('rou_file'):
+                utility_manager.validate_file_path(params['rou_file'], must_exist=True)
     
     def _validate_numeric_params(self, params: Dict[str, Any]) -> None:
         """验证数值参数"""
@@ -140,7 +155,12 @@ class ParameterParser:
                 'render_mode': params.get('render_mode', None),
                 'operation': params.get('operation', 'TRAIN'),
                 'algo_name': algo_name,
-                'tensorboard_logs': tensorboard_logpath
+                'tensorboard_logs': tensorboard_logpath,
+                'use_curriculum_learning': params.get('use_curriculum_learning', False),
+                'base_template_rou_file': params.get('curriculum_template_file'),
+                'static_phase_ratio': params.get('curriculum_static_ratio'),
+                'base_flow_rate': params.get('curriculum_base_flow'),
+                'dynamic_flows_rate': params.get('curriculum_dynamic_rate')
             }
             
             # 如果用户提供了参数，则覆盖默认值
@@ -152,6 +172,8 @@ class ParameterParser:
                 base_config_params['n_steps'] = params['n_steps']
             if 'n_eval_episodes' in params:
                 base_config_params['n_eval_episodes'] = params['n_eval_episodes']
+            if 'prediction_steps' in params:
+                base_config_params['prediction_steps'] = params['prediction_steps']
             
             config = config_class(**base_config_params)
             return config
@@ -168,8 +190,8 @@ class ParameterParser:
             'SAC': SACConfig
         }
         
-        # 如果算法名称不在映射中，使用默认的TrainingConfig
-        return config_mapping.get(algo_name, TrainingConfig)
+        # 如果算法名称不在映射中，使用默认的AlgorithmConfig
+        return config_mapping.get(algo_name, AlgorithmConfig)
 
 
 # 全局参数解析器实例
@@ -177,7 +199,7 @@ parameter_parser = ParameterParser()
 
 
 def parseParams(net_file,  # 网络模型
-                rou_file,  # 交通需求
+                rou_file,  # 交通需求 (现在是rou文件生成的目录)
                 algo_name="DQN",  # 算法名称
                 operation="TRAIN",  # 操作名称
                 tensorboard_logs="logs",  # tensorboard_logs folder
@@ -188,6 +210,13 @@ def parseParams(net_file,  # 网络模型
                 total_timesteps=864_000,  # 总训练时间步（1天)
                 gui=True,  # 图形界面
                 render_mode=None,  # 渲染模式
+                prediction_steps=100,
+                use_curriculum_learning=False, # 是否使用课程学习
+                curriculum_template_file=None, # 课程学习的rou模板文件
+                curriculum_total_seconds=None, # 课程学习的总仿真秒数
+                curriculum_static_ratio=None, # 课程学习的静态阶段时长占比
+                curriculum_base_flow=None, # 课程学习的基础流率
+                curriculum_dynamic_rate=None, # 课程学习的动态阶段生成速率
                 ) -> BaseConfig:
     """解析参数的便捷函数
     
@@ -205,7 +234,14 @@ def parseParams(net_file,  # 网络模型
         n_steps=n_steps,
         total_timesteps=total_timesteps,
         gui=gui,
-        render_mode=render_mode
+        render_mode=render_mode,
+        prediction_steps=prediction_steps,
+        use_curriculum_learning=use_curriculum_learning,
+        curriculum_template_file=curriculum_template_file,
+        curriculum_total_seconds=curriculum_total_seconds,
+        curriculum_static_ratio=curriculum_static_ratio,
+        curriculum_base_flow=curriculum_base_flow,
+        curriculum_dynamic_rate=curriculum_dynamic_rate
     )
 
 
@@ -233,42 +269,70 @@ class TrainingTab:
             with gr.Row():
                 with gr.Column(scale=2):
                     network_file = gr.File(
-                        label="路网模型", 
+                        label="路网核心文件 (.net.xml)", 
                         value="zfdx/net/zfdx.net.xml", 
                         file_types=[".xml", ".net.xml"]
                     )
-                    demand_file = gr.File(
-                        label="交通需求", 
-                        value="zfdx/net/zfdx-perhour.rou.xml", 
-                        file_types=[".xml", ".rou.xml"]
+                    with gr.Row():
+                        algorithm = gr.Dropdown(
+                            choices=self.agent_factory.get_supported_algorithms(),
+                            value="PPO", 
+                            label="算法模型"
+                        )
+                        operation = gr.Dropdown(
+                            ["TRAIN", "EVAL", "PREDICT", "ALL"], 
+                            value="TRAIN", 
+                            label="运行功能"
+                        )
+            
+            with gr.Accordion("课程学习参数 (Curriculum Learning Parameters)", open=True):
+                with gr.Row():
+                    template_file = gr.File(
+                        label="路线模板文件 (.rou.xml)", 
+                        value="zfdx/net/zfdx.rou.template.xml", 
+                        file_types=[".xml", ".rou.xml"],
+                        info="请选择一个只包含<route>定义的.rou.xml文件。"
                     )
-                with gr.Column(scale=1):
-                    algorithm = gr.Dropdown(
-                        choices=self.agent_factory.get_supported_algorithms(),
-                        value="DQN", 
-                        label="算法模型"
+                    total_simulation_seconds = gr.Number(
+                        value=3600, 
+                        label="仿真总秒数 (Total Seconds)",
+                        info="整个训练周期（包含所有阶段）的总时长。"
                     )
-                    operation = gr.Dropdown(
-                        ["EVAL", "TRAIN", "PREDICT", "ALL"], 
-                        value="TRAIN", 
-                        label="运行功能"
+                with gr.Row():
+                    static_phase_ratio = gr.Slider(
+                        0.1, 1.0, 
+                        value=0.7, 
+                        step=0.1, 
+                        label="静态阶段时长占比 (Static Phase Ratio)",
+                        info="静态流量占总仿真时长的比例，剩余部分为动态流量。"
+                    )
+                    base_flow_rate = gr.Number(
+                        value=300, 
+                        label="基础流率 (Base Flow Rate)",
+                        info="静态阶段中等流量的参考值 (vehs/hour)。"
+                    )
+                    dynamic_phase_rate = gr.Number(
+                        value=10, 
+                        label="动态阶段生成速率 (Dynamic Phase Rate)",
+                        info="平均多少秒生成一辆车，数值越小，流量越大。"
+                    )
+
+            with gr.Accordion("训练与仿真参数 (Training & Simulation Parameters)", open=True):
+                with gr.Row():
+                    total_timesteps = gr.Slider(
+                        5000, 5_000_000, 
+                        value=1_000_000, 
+                        step=5000, 
+                        label="总训练步数"
+                    )
+                    prediction_steps = gr.Slider(
+                        50, 500, 
+                        value=100, 
+                        step=10, 
+                        label="预测步数"
                     )
             
-            with gr.Row():
-                total_timesteps = gr.Slider(
-                    1000, 10_000_000, 
-                    value=10_000_000, 
-                    step=1000, 
-                    label="训练步数"
-                )
-                num_seconds = gr.Slider(
-                    1000, 10_000, 
-                    value=10_000, 
-                    step=1000, 
-                    label="仿真秒数"
-                )
-            
-            gui_checkbox = gr.Checkbox(label="GUI", value=False)
+            gui_checkbox = gr.Checkbox(label="显示GUI界面", value=False)
             
             with gr.Row():
                 run_button = gr.Button("开始运行", variant="primary")
@@ -288,8 +352,9 @@ class TrainingTab:
             run_button.click(
                 self.run_training,
                 inputs=[
-                    network_file, demand_file, algorithm, operation, 
-                    total_timesteps, num_seconds, gui_checkbox
+                    network_file, template_file, algorithm, operation,
+                    total_timesteps, total_simulation_seconds, gui_checkbox, prediction_steps,
+                    static_phase_ratio, base_flow_rate, dynamic_phase_rate
                 ],
                 outputs=[progress, output_msg]
             )
@@ -305,12 +370,16 @@ class TrainingTab:
 
     def run_training(self,
                      network_file,
-                     demand_file,
+                     template_file,
                      algorithm,
                      operation,
                      total_timesteps,
-                     num_seconds,
-                     gui_checkbox) -> Iterator[Tuple[int, str]]:
+                     total_simulation_seconds,
+                     gui_checkbox,
+                     prediction_steps,
+                     static_phase_ratio,
+                     base_flow_rate,
+                     dynamic_phase_rate) -> Iterator[Tuple[int, str]]:
         """运行训练任务
         
         Args:
@@ -336,14 +405,15 @@ class TrainingTab:
             
             # 初始验证
             yield from self._validate_inputs(
-                network_file, demand_file, total_timesteps, num_seconds
+                network_file, template_file, total_timesteps, total_simulation_seconds
             )
             
             # 解析参数
             yield 5, "正在解析训练参数..."
             config = self._parse_training_config(
-                network_file, demand_file, algorithm, operation,
-                total_timesteps, num_seconds, gui_checkbox
+                network_file, template_file, algorithm, operation,
+                total_timesteps, total_simulation_seconds, gui_checkbox, prediction_steps,
+                static_phase_ratio, base_flow_rate, dynamic_phase_rate
             )
             
             self.current_training_logger.info(f"开始{operation}操作")
@@ -371,48 +441,61 @@ class TrainingTab:
             if self.current_training_logger:
                 self.current_training_logger.info("训练任务结束")
     
-    def _validate_inputs(self, network_file, demand_file, 
-                        total_timesteps, num_seconds) -> Iterator[Tuple[int, str]]:
+    def _validate_inputs(self, network_file, template_file, 
+                        total_timesteps, total_simulation_seconds) -> Iterator[Tuple[int, str]]:
         """验证输入参数"""
         yield 1, "正在验证输入参数..."
         
-        if not network_file or not demand_file:
-            raise ValidationError("请上传路网模型和交通需求文件")
+        if not network_file or not template_file:
+            raise ValidationError("请上传路网模型和路线模板文件")
         
         if not isinstance(total_timesteps, int) or total_timesteps <= 0:
             raise ValidationError("训练步数必须是正整数")
             
-        if not isinstance(num_seconds, int) or num_seconds <= 0:
-            raise ValidationError("仿真秒数必须是正整数")
+        if not isinstance(total_simulation_seconds, (int, float)) or total_simulation_seconds <= 0:
+            raise ValidationError("仿真总秒数必须是正数")
         
         # 验证文件路径
         try:
             utility_manager.validate_file_path(network_file.name, must_exist=True)
-            utility_manager.validate_file_path(demand_file.name, must_exist=True)
+            utility_manager.validate_file_path(template_file.name, must_exist=True)
         except ValidationError as e:
             raise ValidationError(f"文件验证失败: {e}")
         
         yield 3, "输入参数验证完成"
     
-    def _parse_training_config(self, network_file, demand_file, algorithm, 
-                              operation, total_timesteps, num_seconds, 
-                              gui_checkbox) -> BaseConfig:
+    def _parse_training_config(self, network_file, template_file, algorithm, 
+                              operation, total_timesteps, total_simulation_seconds, 
+                              gui_checkbox, prediction_steps,
+                              static_phase_ratio, base_flow_rate, dynamic_phase_rate) -> BaseConfig:
         """解析训练配置"""
         try:
             import shlex
             network_path = shlex.quote(network_file.name)
-            demand_path = shlex.quote(demand_file.name)
+            template_path = shlex.quote(template_file.name)
             use_gui = bool(gui_checkbox)
             
+            # 约定生成的rou文件与模板文件在同一目录下
+            rou_file_dir = os.path.dirname(template_file.name)
+            # rou_file 参数现在用作目录占位符
+            rou_file_placeholder = shlex.quote(rou_file_dir)
+
             config = parseParams(
                 net_file=network_path,
-                rou_file=demand_path,
+                rou_file=rou_file_placeholder, # 实际的rou文件将动态生成
                 algo_name=algorithm,
                 operation=operation,
                 tensorboard_logs="logs",
                 total_timesteps=total_timesteps,
-                num_seconds=num_seconds,
-                gui=use_gui
+                num_seconds=total_simulation_seconds, # 使用新的总仿真秒数
+                gui=use_gui,
+                prediction_steps=prediction_steps,
+                use_curriculum_learning=True, # 硬编码为True
+                curriculum_template_file=template_path,
+                curriculum_total_seconds=total_simulation_seconds,
+                curriculum_static_ratio=static_phase_ratio,
+                curriculum_base_flow=base_flow_rate,
+                curriculum_dynamic_rate=dynamic_phase_rate
             )
             
             return config
@@ -472,7 +555,7 @@ class TrainingTab:
             if config.operation == "EVAL":
                 yield from self._run_evaluation(model, config)
             elif config.operation == "TRAIN":
-                yield from self._run_training(model, config)
+                yield from self._run_learning(model, config)
             elif config.operation == "PREDICT":
                 yield from self._run_prediction(model, config)
             elif config.operation == "ALL":
@@ -537,14 +620,26 @@ class TrainingTab:
         except Exception as e:
             raise TrainingError(f"评估失败: {e}")
     
-    def _run_training(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
+    def _run_learning(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行训练"""
         try:
             yield 30, "开始模型训练..."
             self.current_training_logger.info(f"开始训练，总步数: {config.total_timesteps}")
             
+            # 创建自定义回调
+            from stable_baselines3.common.callbacks import BaseCallback
+
+            class StopTrainingCallback(BaseCallback):
+                def __init__(self, training_tab, verbose=0):
+                    super(StopTrainingCallback, self).__init__(verbose)
+                    self.training_tab = training_tab
+
+                def _on_step(self) -> bool:
+                    return self.training_tab.is_training
+
             # 执行训练
-            model.learn(total_timesteps=config.total_timesteps, progress_bar=True)
+            stop_callback = StopTrainingCallback(self)
+            model.learn(total_timesteps=config.total_timesteps, progress_bar=True, callback=stop_callback)
             
             yield 70, "训练完成，正在保存模型..."
             
@@ -588,7 +683,7 @@ class TrainingTab:
             info_list = []
             state_list = []
             
-            prediction_steps = 100
+            prediction_steps = config.prediction_steps
             for i in range(prediction_steps):
                 if not self.is_training:  # 检查是否被停止
                     yield 50, "预测被用户停止"
@@ -638,14 +733,22 @@ class TrainingTab:
             
             # 训练
             yield 30, "开始模型训练..."
-            model.learn(total_timesteps=config.total_timesteps, progress_bar=True)
+            from stable_baselines3.common.callbacks import BaseCallback
+
+            class StopTrainingCallback(BaseCallback):
+                def __init__(self, training_tab, verbose=0):
+                    super(StopTrainingCallback, self).__init__(verbose)
+                    self.training_tab = training_tab
+
+                def _on_step(self) -> bool:
+                    return self.training_tab.is_training
+
+            stop_callback = StopTrainingCallback(self)
+            model.learn(total_timesteps=config.total_timesteps, progress_bar=True, callback=stop_callback)
             
             # 保存模型
             yield 60, "训练完成，正在保存模型..."
             model.save(config.model_path)
-            
-            # 重新加载模型
-            model.load(config.model_path)
             
             # 训练后评估
             yield 70, "开始训练后评估..."
@@ -667,7 +770,7 @@ class TrainingTab:
             obs = env.reset()
             info_list = []
             
-            for i in range(100):
+            for i in range(config.prediction_steps):
                 action, state = model.predict(obs)
                 obs, reward, dones, info = env.step(action)
                 info_list.append(info[0] if info else {})

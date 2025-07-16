@@ -2,10 +2,10 @@
 
 提供统一的智能体创建接口，支持多种强化学习算法。
 """
-
+import inspect
 from typing import Dict, Type, Any
 
-from atscui.config import TrainingConfig
+from atscui.config import AlgorithmConfig
 from atscui.models.agents import DQNAgent, A2CAgent, PPOAgent, SACAgent
 from atscui.models.base_agent import BaseAgent
 from atscui.exceptions import ConfigurationError, ModelError
@@ -40,7 +40,7 @@ class AgentFactory:
     def __init__(self):
         self.logger = get_logger('agent_factory')
     
-    def create_agent(self, env, config: TrainingConfig) -> BaseAgent:
+    def create_agent(self, env, config: AlgorithmConfig) -> BaseAgent:
         """创建智能体实例
         
         Args:
@@ -103,16 +103,26 @@ class AgentFactory:
         try:
             algorithm_class = algorithm_registry[algo_name]
             self.logger.info(f"正在创建 {algo_name} 算法实例...")
+
+            # --- 动态参数过滤 ---
+            # 获取算法构造函数的有效参数
+            sig = inspect.signature(algorithm_class.__init__)
+            valid_keys = {p.name for p in sig.parameters.values()}
+
+            # 过滤kwargs，只传递算法构造函数接受的参数
+            model_params = {key: value for key, value in kwargs.items() if key in valid_keys}
+
+            # 确保env和policy被正确设置
+            model_params['env'] = env
+            if 'policy' not in model_params:
+                model_params['policy'] = 'MlpPolicy'
             
-            # 设置默认参数
-            default_params = {
-                'env': env,
-                'policy': 'MlpPolicy',
-                'verbose': 0
-            }
-            default_params.update(kwargs)
-            
-            algorithm = algorithm_class(**default_params)
+            # 处理 tensorboard_log 的重命名
+            if 'tensorboard_logs' in kwargs and 'tensorboard_log' in valid_keys:
+                model_params['tensorboard_log'] = kwargs['tensorboard_logs']
+
+            self.logger.info(f"使用以下有效参数创建模型: {list(model_params.keys())}")
+            algorithm = algorithm_class(**model_params)
             
             self.logger.info(f"{algo_name} 算法实例创建成功")
             return algorithm
@@ -157,7 +167,7 @@ class AgentFactory:
 _agent_factory = AgentFactory()
 
 
-def createAgent(env, config: TrainingConfig) -> BaseAgent:
+def createAgent(env, config: AlgorithmConfig) -> BaseAgent:
     """创建智能体的便捷函数
     
     Args:
