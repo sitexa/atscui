@@ -1,5 +1,6 @@
 import ntpath
 import os
+import glob
 import re
 import ntpath
 import traceback
@@ -121,51 +122,62 @@ class VisualizationTab:
 
     def _plot_training_process(self, file) -> Tuple[Optional[str], str]:
         """绘制训练过程图
-        
+
         Args:
             file: 上传的训练过程文件
-            
+
         Returns:
             Tuple[Optional[str], str]: (图片路径, 输出信息)
         """
         try:
-            # 验证文件
+            # 1. 基本验证
             if file is None:
                 return None, "❌ 请选择训练过程文件"
-            
-            if not file_manager.file_exists(file.name):
-                return None, "❌ 文件不存在或无法访问"
-            
-            # 验证文件格式
-            if not file.name.lower().endswith('.csv'):
-                return None, "❌ 请选择CSV格式的训练过程文件"
-            
-            self.logger.info(f"开始绘制训练过程图: {file.name}")
-            
-            # 确定原始日志目录
-            original_log_dir = os.path.join(os.getcwd(), 'outs')
-            self.logger.info(f"[DEBUG] Original log directory for search: {original_log_dir}")
 
-            # 生成图表
-            output_path = self.visualizer.plot_all_training_logs(file.name, original_log_directory=original_log_dir)
-            
+            base_filename = os.path.basename(file.name)
+            if not base_filename.lower().endswith('.csv'):
+                return None, "❌ 请选择CSV格式的训练过程文件"
+
+            # 2. 在整个项目中搜索该文件以找到其原始位置
+            project_root = str(Path(__file__).resolve().parents[3])
+            search_pattern = os.path.join(project_root, '**', base_filename)
+            found_files = glob.glob(search_pattern, recursive=True)
+
+            # 3. 处理搜索结果
+            if not found_files:
+                return None, f"❌ 在项目目录中找不到文件: {base_filename}。请确保文件在项目文件夹内。"
+
+            if len(found_files) > 1:
+                self.logger.warning(f"找到多个同名文件: {found_files}。将使用第一个: {found_files[0]}")
+
+            original_file_path = found_files[0]
+            original_log_dir = os.path.dirname(original_file_path)
+
+            # 4. 调用可视化工具
+            output_path = self.visualizer.plot_all_training_logs(
+                specific_log_file_path=original_file_path,
+                original_log_directory=original_log_dir
+            )
+
+
+            # 5. 处理结果
             if output_path and file_manager.file_exists(output_path):
                 success_msg = f"✅ 训练过程所有指标图已生成: {output_path}"
                 self.logger.info(f"训练过程所有指标图生成成功: {output_path}")
                 return output_path, success_msg
             else:
                 return None, "❌ 训练过程所有指标图生成失败，请检查文件格式和内容"
-                
+
         except ValidationError as e:
             error_msg = f"❌ 输入验证失败: {e}"
             self.logger.warning(error_msg)
             return None, error_msg
-            
+
         except FileOperationError as e:
             error_msg = f"❌ 文件操作失败: {e}"
             self.logger.error(error_msg)
             return None, error_msg
-            
+
         except Exception as e:
             error_msg = f"❌ 绘制训练过程图时发生错误: {e}"
             self.logger.error(f"{error_msg}\n{traceback.format_exc()}")
