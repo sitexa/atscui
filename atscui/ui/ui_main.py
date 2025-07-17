@@ -23,6 +23,8 @@ class ATSCUI:
         # 加载UI配置
         try:
             self.ui_config = config_manager.get_ui_config()
+            # 确保默认配置在UI启动时被创建
+            config_manager.create_default_configs()
             self.logger.info("ATSCUI主界面初始化完成")
         except Exception as e:
             self.logger.error(f"初始化ATSCUI失败: {e}")

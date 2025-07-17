@@ -1,0 +1,20 @@
+{
+  "net_file": "xgzd/net/xgzd.net.xml",
+  "rou_file": "xgzd/net/xgzd-perhour.rou.xml",
+  "csv_path": "outs/default-predict",
+  "model_path": "models/default-model-DQN.zip",
+  "eval_path": "evals/default-eval.txt",
+  "predict_path": "predicts/default-predict.json",
+  "single_agent": true,
+  "gui": false,
+  "render_mode": null,
+  "operation": "TRAIN",
+  "algo_name": "DQN",
+  "phase_control": "sequential",
+  "prediction_steps": 100,
+  "use_curriculum_learning": false,
+  "base_template_rou_file": null,
+  "static_phase_ratio": 0.8,
+  "base_flow_rate": 300,
+  "dynamic_flows_rate": 10
+}

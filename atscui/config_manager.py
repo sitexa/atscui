@@ -15,12 +15,29 @@ from atscui.logging_manager import get_logger
 
 class ConfigManager:
     """配置管理器"""
-    
+    _SYSTEM_VERSION = "1.0.0" # 定义系统版本
+
     def __init__(self):
         self.logger = get_logger('config')
         self.config_dir = Path("configs")
         self.config_dir.mkdir(exist_ok=True)
         self._config_cache = {}
+
+    def get_system_version(self) -> str:
+        """获取系统版本信息"""
+        return self._SYSTEM_VERSION
+
+    def is_healthy(self) -> bool:
+        """检查配置管理器是否健康（例如，默认配置是否存在且可加载）"""
+        try:
+            # 尝试加载一个默认配置来验证配置系统是否正常工作
+            # 假设存在一个名为 "default_training" 的默认配置
+            self.load_config("default_training")
+            self.logger.info("ConfigManager 健康检查通过：默认配置可加载")
+            return True
+        except Exception as e:
+            self.logger.error(f"ConfigManager 健康检查失败：{e}")
+            return False
     
     def validate_config(self, config: Any) -> bool:
         """验证配置对象"""

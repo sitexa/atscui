@@ -15,6 +15,7 @@ from atscui.exceptions import ValidationError, FileOperationError, Visualization
 from atscui.logging_manager import get_logger
 
 
+
 class VisualizationTab:
     """可视化标签页
     
@@ -141,18 +142,19 @@ class VisualizationTab:
             
             self.logger.info(f"开始绘制训练过程图: {file.name}")
             
-            # 获取文件信息
-            folder_name, filename = self._get_gradio_file_info(file)
-            
+            # 确定原始日志目录
+            original_log_dir = os.path.join(os.getcwd(), 'outs')
+            self.logger.info(f"[DEBUG] Original log directory for search: {original_log_dir}")
+
             # 生成图表
-            output_path = self.visualizer.plot_process(file.name, folder_name, filename)
+            output_path = self.visualizer.plot_all_training_logs(file.name, original_log_directory=original_log_dir)
             
             if output_path and file_manager.file_exists(output_path):
-                success_msg = f"✅ 训练过程图已生成: {output_path}"
-                self.logger.info(f"训练过程图生成成功: {output_path}")
+                success_msg = f"✅ 训练过程所有指标图已生成: {output_path}"
+                self.logger.info(f"训练过程所有指标图生成成功: {output_path}")
                 return output_path, success_msg
             else:
-                return None, "❌ 图表生成失败，请检查文件格式和内容"
+                return None, "❌ 训练过程所有指标图生成失败，请检查文件格式和内容"
                 
         except ValidationError as e:
             error_msg = f"❌ 输入验证失败: {e}"
