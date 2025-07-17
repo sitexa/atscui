@@ -83,4 +83,7 @@ class SACConfig(AlgorithmConfig):
     """SAC专属配置（重载通用配置）"""
     buffer_size: int = 100_000           # SAC使用较大的经验回放池
     tau: float = 0.005                   # SAC的软更新速率
+    ent_coef: str = 'auto'               # 自动调整熵系数
+    gradient_steps: int = 1              # 梯度更新步数
+    target_entropy: str = 'auto'         # 自动设置目标熵
 

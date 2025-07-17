@@ -15,6 +15,9 @@ class SACAgent(BaseAgent):
             train_freq=self.config.train_freq,
             tensorboard_log=self.config.tensorboard_logs,
             verbose=self.config.verbose,
+            ent_coef=self.config.ent_coef,
+            gradient_steps=self.config.gradient_steps,
+            target_entropy=self.config.target_entropy,
         )
 
     def train(self):
