@@ -290,31 +290,26 @@ class TrainingTab:
                     template_file = gr.File(
                         label="路线模板文件 (.rou.xml)", 
                         value="zfdx/net/zfdx.rou.template.xml", 
-                        file_types=[".xml", ".rou.xml"],
-                        info="请选择一个只包含<route>定义的.rou.xml文件。"
+                        file_types=[".xml", ".rou.xml"]
                     )
                     total_simulation_seconds = gr.Number(
                         value=3600, 
-                        label="仿真总秒数 (Total Seconds)",
-                        info="整个训练周期（包含所有阶段）的总时长。"
+                        label="仿真总秒数 (Total Seconds)"
                     )
                 with gr.Row():
                     static_phase_ratio = gr.Slider(
                         0.1, 1.0, 
                         value=0.7, 
                         step=0.1, 
-                        label="静态阶段时长占比 (Static Phase Ratio)",
-                        info="静态流量占总仿真时长的比例，剩余部分为动态流量。"
+                        label="静态阶段时长占比 (Static Phase Ratio)"
                     )
                     base_flow_rate = gr.Number(
                         value=300, 
-                        label="基础流率 (Base Flow Rate)",
-                        info="静态阶段中等流量的参考值 (vehs/hour)。"
+                        label="基础流率 (Base Flow Rate)"
                     )
                     dynamic_phase_rate = gr.Number(
                         value=10, 
-                        label="动态阶段生成速率 (Dynamic Phase Rate)",
-                        info="平均多少秒生成一辆车，数值越小，流量越大。"
+                        label="动态阶段生成速率 (Dynamic Phase Rate)"
                     )
 
             with gr.Accordion("训练与仿真参数 (Training & Simulation Parameters)", open=True):
