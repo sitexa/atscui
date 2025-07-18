@@ -118,6 +118,10 @@
    ```
 
 3. **安装依赖**
+  ```bash
+  conda env create -f environment.yml
+  ```
+  或者
    ```bash
    pip install -r requirements.txt
    ```

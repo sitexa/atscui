@@ -1,35 +1,46 @@
-# 核心机器学习框架
-numpy<2.0
-pandas<2.0
-# TensorFlow (跨平台兼容)
-tensorflow==2.15.0; sys_platform != "darwin"
-tensorflow-macos==2.15.0; sys_platform == "darwin"
-tensorboard==2.15.0
+# === 基础科学与数值计算 ===
+numpy
+pandas
+scipy
+matplotlib
+h5py
+protobuf
 
-# PyTorch 生态系统
+# === 深度学习框架 ===
+tensorflow; sys_platform != "darwin"
+tensorflow-macos; sys_platform == "darwin"
+tensorflow-metal; sys_platform == "darwin"
 torch
 torchaudio
 torchvision
 
-# 强化学习库
-stable-baselines3
+# === API 与服务框架 ===
+fastapi
+uvicorn
+requests
+pydantic
+python-multipart
+pyyaml
+
+# === 强化学习与环境 ===
+stable-baselines3==2.5.0
 gym==0.26.2
-pettingzoo
+gymnasium==1.0.0
+pettingzoo==1.25.0
 
-# 交通仿真
-sumolib
-traci
+# === SUMO 交通仿真 ===
+sumolib==1.22.0
+traci==1.22.0
 
-# 用户界面和可视化
-gradio==3.50.2
-matplotlib<4.0
-
-# 科学计算和工具库
-scipy<2.0
-joblib<2.0
-psutil
-
-# 其他依赖
+# === 可视化与界面 ===
 opencv-python
-pillow
+gradio==5.38.0
 
+# === 其他有用工具 ===
+tqdm
+joblib
+typing-extensions
+markdown
+jinja2
+six
+wrapt

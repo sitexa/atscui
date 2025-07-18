@@ -1,0 +1,29 @@
+name: atscui
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - pandas
+  - matplotlib
+  - scipy
+  - scikit-learn
+  - opencv
+  - tensorflow
+  - pytorch
+  - torchaudio
+  - torchvision
+  - h5py
+  - protobuf
+  - tensorboard
+  - fastapi
+  - uvicorn
+  - requests
+  - pyyaml
+  - pip:
+      - gradio==5.38.0
+      - pettingzoo==1.25.0
+      - stable-baselines3==2.5.0
+      - sumolib==1.22.0
+      - traci==1.22.0
