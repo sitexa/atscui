@@ -148,7 +148,13 @@ class BaseTrafficSignal:
             self.sumo.trafficlight.setRedYellowGreenState(self.id, self.all_phases[self.green_phase].state)
             self.is_yellow = False
 
-    def set_next_phase(self, action: int):
+    def set_next_phase(self, action: int, continuous_values=None):
+        """Set the next phase for the traffic signal.
+        
+        Args:
+            action: The action to take (discrete)
+            continuous_values: Optional continuous action values for enhanced control
+        """
         raise NotImplementedError("This method should be implemented by subclasses.")
 
     def compute_observation(self):
@@ -175,7 +181,7 @@ class BaseTrafficSignal:
         self.last_measure = ts_wait
         return reward
 
-    def _pressure_reward_v2(self):
+    def _red_green_pressure_diff(self):
         """Computes the pressure reward and applies a penalty for switching phases."""
         # 1. 计算基础的压力回报
         try:
@@ -215,7 +221,7 @@ class BaseTrafficSignal:
         # 3. 返回最终回报
         return pressure_reward - switch_penalty
 
-    def _pressure_reward_v3(self):
+    def _red_lane_queue_penalty(self):
         """Computes the pressure reward based ONLY on the queue of lanes with a red light."""
         # 1. 计算红灯压力
         try:
@@ -342,10 +348,14 @@ class BaseTrafficSignal:
         "diff-waiting-time": _diff_waiting_time_reward,
         "average-speed": _average_speed_reward,
         "queue": _queue_reward,
-        "pressure": _pressure_reward,
-        "pressure_v2": _pressure_reward_v2,
-        "pressure_v3": _pressure_reward_v3,  # Register new function
+        "net_flow_pressure": _pressure_reward,  # 出口车道车辆数 - 入口车道车辆数
+        "red_green_pressure_diff": _red_green_pressure_diff,  # 红灯车道排队数 - 绿灯车道排队数
+        "red_lane_queue_penalty": _red_lane_queue_penalty,  # 仅基于红灯车道排队长度的负奖励
         "weighted-sum": _weighted_sum_reward,
+        # 保持向后兼容性的别名
+        # "pressure": _pressure_reward,
+        # "pressure_v2": _red_green_pressure_diff,
+        # "pressure_v3": _red_lane_queue_penalty,
     }
 
 
@@ -360,7 +370,13 @@ class TrafficSignal(BaseTrafficSignal):
         # We set it to the maximum possible for now, and it will be handled dynamically
         self.action_space = spaces.Discrete(max(2, self.num_green_phases)) 
 
-    def set_next_phase(self, action: int):
+    def set_next_phase(self, action: int, continuous_values=None):
+        """Set the next phase for discrete traffic signal control.
+        
+        Args:
+            action: The discrete action to take
+            continuous_values: Ignored for discrete control (compatibility parameter)
+        """
         if self.env.current_control_mode == 'sequential':
             is_change_action = (action == 1)
             is_min_green_passed = (self.time_since_last_phase_change >= self.yellow_time + self.min_green)
@@ -398,20 +414,49 @@ class ContinuousTrafficSignal(BaseTrafficSignal):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.action_space = spaces.Box(low=0, high=1, shape=(self.num_green_phases,), dtype=np.float32)
+        # 添加相位切换稳定性控制
+        self.phase_stability_threshold = 0.1  # 相位切换的最小置信度差异
+        self.last_action_values = None
 
-    def set_next_phase(self, new_phase: int):
+    def set_next_phase(self, new_phase: int, continuous_values=None):
         """
-        Sets the next green phase.
-        Note: This method receives a discrete action (the result of argmax) from the environment.
+        Sets the next green phase with stable continuous control.
+        
+        Args:
+            new_phase: The discrete phase to switch to
+            continuous_values: The original continuous action values for fine-grained control
         """
+        # 相位切换稳定性检查
+        if continuous_values is not None:
+            # 检查是否应该切换相位（避免因微小差异导致的频繁切换）
+            if self.last_action_values is not None:
+                current_max_value = continuous_values[new_phase]
+                last_max_value = np.max(self.last_action_values)
+                # 只有当新相位的置信度明显高于之前的最大值时才切换
+                if current_max_value - last_max_value < self.phase_stability_threshold:
+                    new_phase = self.green_phase  # 保持当前相位
+            
+            self.last_action_values = continuous_values.copy()
+        
+        # 计算当前相位的扩展持续时间（如果提供了连续值）
+        phase_duration = self.delta_time
+        if continuous_values is not None and new_phase < len(continuous_values):
+            # 使用连续值来微调相位持续时间，但不修改全局delta_time
+            continuous_factor = continuous_values[new_phase]
+            # 将连续值映射到持续时间调整因子 [0.8, 1.3] - 更保守的范围
+            duration_multiplier = 0.8 + continuous_factor * 0.5
+            phase_duration = int(self.delta_time * duration_multiplier)
+            # 确保在合理范围内
+            phase_duration = max(self.min_green, min(self.max_green, phase_duration))
+        
         if self.green_phase == new_phase or self.time_since_last_phase_change < self.yellow_time + self.min_green:
             self.sumo.trafficlight.setRedYellowGreenState(self.id, self.all_phases[self.green_phase].state)
-            self.next_action_time = self.env.sim_step + self.delta_time
+            self.next_action_time = self.env.sim_step + phase_duration
         else:
             self.sumo.trafficlight.setRedYellowGreenState(
                 self.id, self.all_phases[self.yellow_dict[(self.green_phase, new_phase)]].state
             )
             self.green_phase = new_phase
-            self.next_action_time = self.env.sim_step + self.delta_time
+            self.next_action_time = self.env.sim_step + phase_duration
             self.is_yellow = True
             self.time_since_last_phase_change = 0

@@ -413,7 +413,7 @@ class SumoEnv(BaseSumoEnv):
 
     def __init__(self, **kwargs):
         if 'reward_fn' not in kwargs:
-            kwargs['reward_fn'] = 'pressure_v3'
+            kwargs['reward_fn'] = 'red_lane_queue_penalty'  # 使用新的命名，等同于原来的pressure_v3
         super().__init__(traffic_signal_class=TrafficSignal, **kwargs)
 
     def _calculate_cci(self, ts_id):
@@ -490,6 +490,8 @@ class ContinuousSumoEnv(BaseSumoEnv):
     """SUMO Environment for Traffic Signal Control with continuous actions."""
 
     def __init__(self, **kwargs):
+        if 'reward_fn' not in kwargs:
+            kwargs['reward_fn'] = 'red_lane_queue_penalty'  
         super().__init__(traffic_signal_class=ContinuousTrafficSignal, **kwargs)
         # The single_agent is set to True for continuous action space
         self.single_agent = True
@@ -509,6 +511,10 @@ class ContinuousSumoEnv(BaseSumoEnv):
         truncated = dones["__all__"]
         info = self._compute_info()
 
+        if self.step_counter % self.print_interval == 0:
+            print(f"==========SumoEnv-321:step {self.step_counter}::info==========")
+            pprint(info)
+
         if self.single_agent:
             return observations[self.ts_ids[0]], rewards[self.ts_ids[0]], terminated, truncated, info
         else:
@@ -516,16 +522,18 @@ class ContinuousSumoEnv(BaseSumoEnv):
 
     def _apply_actions(self, actions):
         if self.single_agent:
-            discrete_action = np.argmax(actions)
             if self.traffic_signals[self.ts_ids[0]].time_to_act:
-                self.traffic_signals[self.ts_ids[0]].set_next_phase(discrete_action)
+                # 稳定的连续动作处理：使用确定性argmax选择最优相位
+                # 避免随机性导致的不稳定切换
+                discrete_action = np.argmax(actions)
+                
+                # 传递连续动作值用于相位持续时间的微调
+                self.traffic_signals[self.ts_ids[0]].set_next_phase(discrete_action, continuous_values=actions)
         else:
-            # This part is for multi-agent continuous control, which is not the primary use case here.
-            # It converts a dictionary of continuous actions to discrete actions.
-            discrete_actions = {ts: np.argmax(act) for ts, act in actions.items()}
-            for ts, action in discrete_actions.items():
+            for ts, act in actions.items():
                 if self.traffic_signals[ts].time_to_act:
-                    self.traffic_signals[ts].set_next_phase(action)
+                    discrete_action = np.argmax(act)
+                    self.traffic_signals[ts].set_next_phase(discrete_action, continuous_values=act)
 
 
 def env(**kwargs):
