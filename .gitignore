@@ -8,6 +8,9 @@ __pycache__/
 *.so
 outs_csv.tar.gz
 
+zfdx/evaluation_results
+zfdx/net/output
+
 # Distribution / packaging
 .Python
 build/
@@ -230,3 +233,16 @@ ui/tensorboard/
 /debug_logs/
 /zszx-1-dqn-log.tar.gz
 /ubuntu/
+zfdx/evaluation_results/algorithm_comparison_20250721_144035.png
+zfdx/evaluation_results/algorithm_comparison_20250721_144406.png
+zfdx/evaluation_results/algorithm_comparison_20250721_145046.png
+zfdx/evaluation_results/algorithm_comparison_20250721_145756.png
+zfdx/evaluation_results/algorithm_comparison_20250721_161445.png
+zfdx/evaluation_results/comparison_boxplots_20250721_144033.png
+zfdx/evaluation_results/comparison_boxplots_20250721_144404.png
+zfdx/evaluation_results/comparison_boxplots_20250721_145044.png
+zfdx/evaluation_results/comparison_boxplots_20250721_145754.png
+zfdx/evaluation_results/comparison_boxplots_20250721_161442.png
+zfdx/net/output/queue_output.xml
+zfdx/net/output/summary_output.xml
+zfdx/net/output/tripinfo_output.xml
