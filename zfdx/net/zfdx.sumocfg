@@ -5,8 +5,14 @@
     </input>
     <time>
         <begin value="0"/>
-        <end value="100000"/>
+        <end value="7200"/>
     </time>
+    <report>
+        <verbose value="true"/>
+        <tripinfo-output value="output/tripinfo_output.xml"/>
+        <summary-output value="output/summary_output.xml"/>
+        <queue-output value="output/queue_output.xml"/>
+    </report>
     <viewsettings>
         <scheme name="real world"/>
     </viewsettings>
