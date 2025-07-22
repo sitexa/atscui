@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Optional
 from atscui.logging_manager import get_logger
 
+plt.rcParams['font.sans-serif'] = 'SimHei'
+plt.rcParams['axes.unicode_minus'] = False  
+
 
 class Visualizer:
     def __init__(self):
@@ -97,18 +100,22 @@ class Visualizer:
             'system_total_stopped',
             'system_mean_waiting_time',
             'system_mean_speed',
+            'system_total_throughput',
+            'system_mean_travel_time',
             'agents_total_stopped',
-            'agents_total_accumulated_waiting_time'
+            'agents_total_accumulated_waiting_time',
+            'agents_total_throughput',
+            'agents_mean_travel_time'
         ]
 
         plot_output_dir = os.path.join(log_directory, "plots")
         os.makedirs(plot_output_dir, exist_ok=True)
 
         num_metrics = len(metrics)
-        num_cols = 2
+        num_cols = 3
         num_rows = (num_metrics + num_cols - 1) // num_cols
 
-        fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, num_rows * 5))
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(18, num_rows * 4))
         axes = axes.flatten()
 
         metrics_plotted = 0

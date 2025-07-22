@@ -178,6 +178,9 @@ class BaseSumoEnv(gym.Env):
         conn.close()
 
         self.vehicles = dict()
+        # 重置行程时间追踪数据（新增功能，不影响原有逻辑）
+        self.trip_times = []
+        self.vehicle_start_times = {}
         self.reward_range = (-float("inf"), float("inf"))
         self.episode = 0
         self.metrics = []
@@ -186,6 +189,10 @@ class BaseSumoEnv(gym.Env):
         self.rewards = {ts: None for ts in self.ts_ids}
         self.step_counter = 0
         self.print_interval = 500
+        
+        # 用于追踪行程时间的数据结构（新增功能，不影响原有逻辑）
+        self.trip_times = []  # 存储所有完成车辆的行程时间
+        self.vehicle_start_times = {}  # 记录每个车辆的出发时间
 
     def _create_traffic_signals(self, conn):
         if isinstance(self.reward_fn, dict):
@@ -345,17 +352,36 @@ class BaseSumoEnv(gym.Env):
     def _sumo_step(self):
         if self.use_dynamic_flows:
             self._generate_vehicles()
+        
+        # 在仿真步骤前记录新出发的车辆（新增功能，不影响原有逻辑）
+        departed_vehicles = self.sumo.simulation.getDepartedIDList()
+        for veh_id in departed_vehicles:
+            self.vehicle_start_times[veh_id] = self.sim_step
+        
         self.sumo.simulationStep()
+        
+        # 在仿真步骤后记录到达的车辆并计算行程时间（新增功能，不影响原有逻辑）
+        arrived_vehicles = self.sumo.simulation.getArrivedIDList()
+        for veh_id in arrived_vehicles:
+            if veh_id in self.vehicle_start_times:
+                travel_time = self.sim_step - self.vehicle_start_times[veh_id]
+                self.trip_times.append(travel_time)
+                del self.vehicle_start_times[veh_id]
 
     def _get_system_info(self):
         vehicles = self.sumo.vehicle.getIDList()
         speeds = [self.sumo.vehicle.getSpeed(vehicle) for vehicle in vehicles]
         waiting_times = [self.sumo.vehicle.getWaitingTime(vehicle) for vehicle in vehicles]
         return {
+            # 原有指标（保持不变）
             "system_total_stopped": sum(int(speed < 0.1) for speed in speeds),
             "system_total_waiting_time": sum(waiting_times),
             "system_mean_waiting_time": 0.0 if len(vehicles) == 0 else np.mean(waiting_times),
             "system_mean_speed": 0.0 if len(vehicles) == 0 else np.mean(speeds),
+            
+            # 新增指标（不影响原有功能）
+            "system_total_throughput": self.sumo.simulation.getArrivedNumber(),
+            "system_mean_travel_time": 0.0 if not self.trip_times else np.mean(self.trip_times),
         }
 
     def _get_per_agent_info(self):
@@ -369,6 +395,11 @@ class BaseSumoEnv(gym.Env):
             info[f"{ts}_average_speed"] = average_speed[i]
         info["agents_total_stopped"] = sum(stopped)
         info["agents_total_accumulated_waiting_time"] = sum(accumulated_waiting_time)
+        
+        # 新增：总吞吐量和平均行程时间（累积指标）
+        info["agents_total_throughput"] = self.sumo.simulation.getArrivedNumber()
+        info["agents_mean_travel_time"] = np.mean(self.trip_times) if self.trip_times else 0.0
+        
         return info
 
     def close(self):
