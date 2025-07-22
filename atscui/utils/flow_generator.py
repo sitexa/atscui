@@ -2,6 +2,39 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Dict, Any
 
+def extract_routes_from_template(template_file: str) -> Dict[str, str]:
+    """
+    从模板路线文件中提取路线ID和对应的边定义
+    
+    Args:
+        template_file (str): 模板路线文件路径
+        
+    Returns:
+        Dict[str, str]: 路线ID到边定义的映射
+    """
+    try:
+        tree = ET.parse(template_file)
+        root = tree.getroot()
+        
+        routes = {}
+        for route in root.findall('route'):
+            route_id = route.get('id')
+            edges = route.get('edges')
+            if route_id and edges:
+                routes[route_id] = edges
+                
+        if not routes:
+            raise ValueError("模板文件中未找到任何路线定义")
+            
+        return routes
+        
+    except FileNotFoundError:
+        raise FileNotFoundError(f"模板文件不存在: {template_file}")
+    except ET.ParseError as e:
+        raise ValueError(f"XML解析错误: {e}")
+    except Exception as e:
+        raise RuntimeError(f"提取路线时发生错误: {e}")
+
 def generate_curriculum_flow(
     base_route_file: str,
     output_file: str,

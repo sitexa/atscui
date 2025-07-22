@@ -6,7 +6,7 @@ import inspect
 from typing import Dict, Type, Any
 
 from atscui.config import AlgorithmConfig
-from atscui.models.agents import DQNAgent, A2CAgent, PPOAgent, SACAgent
+from atscui.models.agents import DQNAgent, A2CAgent, PPOAgent, SACAgent, FixTimeAgent
 from atscui.models.base_agent import BaseAgent
 from atscui.exceptions import ConfigurationError, ModelError
 from atscui.logging_manager import get_logger
@@ -24,6 +24,7 @@ class AgentFactory:
         "A2C": A2CAgent,
         "PPO": PPOAgent,
         "SAC": SACAgent,
+        "FIXTIME": FixTimeAgent,
     }
     
     @property
@@ -200,4 +201,4 @@ def get_supported_algorithms() -> list:
     Returns:
         list: 支持的算法名称列表
     """
-    return list(_agent_factory.ALGORITHM_REGISTRY.keys())
+    return list(_agent_factory.AGENT_REGISTRY.keys())

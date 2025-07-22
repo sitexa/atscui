@@ -116,7 +116,7 @@ class ConfigManager:
 
             # 验证算法名称
             if hasattr(config, 'algo_name'):
-                valid_algorithms = ['DQN', 'PPO', 'A2C', 'SAC']
+                valid_algorithms = ['DQN', 'PPO', 'A2C', 'SAC', 'FIXTIME']
                 if config.algo_name not in valid_algorithms:
                     raise ValidationError(
                         f"不支持的算法，支持的算法: {valid_algorithms}",

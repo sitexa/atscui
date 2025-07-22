@@ -69,6 +69,9 @@ def createEnv(config):
             flows_rate=config.dynamic_flows_rate
         )
     else:
+        # 为FIXTIME算法设置固定配时参数
+        fixed_ts = config.algo_name.upper() == "FIXTIME"
+        
         env = SumoEnv(
             net_file=config.net_file,
             route_file=final_rou_file,
@@ -79,7 +82,8 @@ def createEnv(config):
             render_mode=config.render_mode,
             use_dynamic_flows=use_dynamic_flows,
             dynamic_start_time=dynamic_start_time,
-            flows_rate=config.dynamic_flows_rate
+            flows_rate=config.dynamic_flows_rate,
+            fixed_ts=fixed_ts  # 为FIXTIME算法启用固定配时
         )
 
     print("=====env:action_space:", env.action_space)

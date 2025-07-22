@@ -56,14 +56,6 @@ class ATSCUI:
                     elem_classes=["main-title"]
                 )
                 
-                # 系统状态信息
-                with gr.Row():
-                    gr.Markdown(
-                        f"📊 **系统版本**: {self._get_system_version()} | "
-                        f"🔧 **配置状态**: {'✅ 正常' if self._check_system_health() else '❌ 异常'}",
-                        elem_classes=["status-info"]
-                    )
-                
                 # 主要功能标签页
                 with gr.Tabs() as tabs:
                     # 模型训练标签页

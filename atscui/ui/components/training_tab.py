@@ -5,6 +5,7 @@ from pathlib import Path
 import gradio as gr
 import json
 import traceback
+import numpy as np
 from typing import Dict, Any, Optional, Tuple, Generator, Iterator
 
 from atscui.config.base_config import AlgorithmConfig, RunningConfig, DQNConfig, PPOConfig, A2CConfig, SACConfig, BaseConfig
@@ -20,6 +21,7 @@ from atscui.exceptions import (
 )
 from atscui.logging_manager import get_logger, log_manager
 from atscui.config_manager import config_manager, ConfigManager
+from atscui.utils.fixed_timing_simulator import FixedTimingSimulator
 
 
 class ParameterParser:
@@ -187,7 +189,8 @@ class ParameterParser:
             'DQN': DQNConfig,
             'PPO': PPOConfig,
             'A2C': A2CConfig,
-            'SAC': SACConfig
+            'SAC': SACConfig,
+            'FIXTIME': AlgorithmConfig
         }
         
         # 如果算法名称不在映射中，使用默认的AlgorithmConfig
@@ -528,13 +531,30 @@ class TrainingTab:
         agent = None
         
         try:
-            # 创建环境
+            # 检查是否为FIXTIME算法，进行特殊处理
+            if config.algo_name.upper() == "FIXTIME":
+                # FIXTIME算法特殊处理流程
+                yield 15, "正在创建FIXTIME仿真环境..."
+                env = createEnv(config)
+                if not env:
+                    raise EnvironmentError("FIXTIME环境创建失败")
+                yield 18, "FIXTIME环境创建完成"
+                
+                yield 20, "正在创建FIXTIME智能体..."
+                agent = self.agent_factory.create_agent(env, config)
+                model = agent  # FIXTIME使用agent对象
+                yield 25, "FIXTIME模式：使用固定配时方案，跳过模型加载..."
+                
+                # FIXTIME算法直接进入统一仿真，不区分操作类型
+                yield from self._run_fixtime_simulation(model, config, 30, 90)
+                return  # FIXTIME处理完成，直接返回
+            
             yield 15, "正在创建仿真环境..."
             env = createEnv(config)
             if not env:
                 raise EnvironmentError("环境创建失败")
             
-            # 创建智能体
+            
             yield 20, "正在创建智能体模型..."
             agent = self.agent_factory.create_agent(env, config)
             model = agent.model
@@ -586,6 +606,55 @@ class TrainingTab:
                 self.logger.info("仿真资源已清理")
             except Exception as e:
                 self.logger.warning(f"清理资源时出现警告: {e}")
+    
+    def _run_fixtime_simulation(self, model, config: BaseConfig, 
+                                start_progress: int = 30, end_progress: int = 90) -> Iterator[Tuple[int, str]]:
+        """运行固定配时仿真
+        
+        Args:
+            model: FixTimeAgent对象（实际不使用，直接创建环境）
+            config: 配置对象
+            start_progress: 起始进度
+            end_progress: 结束进度
+        """
+        from atscui.utils.fixed_timing_simulator import FixedTimingSimulator
+        
+        yield start_progress, "初始化固定配时仿真器..."
+        self.current_training_logger.info(f"开始固定配时仿真，仿真时长: {getattr(config, 'num_seconds', 3600)}秒")
+        
+        try:
+            # 创建固定配时仿真器
+            simulator = FixedTimingSimulator(config, self.current_training_logger)
+            
+            # 运行仿真
+            results = None
+            for progress, message in simulator.run_simulation():
+                # 检查是否被用户停止
+                if not self.is_training:
+                    yield start_progress + 20, "固定配时仿真被用户停止"
+                    return
+                
+                # 将仿真器的进度映射到总体进度范围
+                mapped_progress = start_progress + int((progress / 100) * (end_progress - start_progress))
+                yield mapped_progress, message
+                
+                # 保存最终结果
+                if hasattr(simulator, '_last_results'):
+                    results = simulator._last_results
+            
+            # 获取仿真结果
+            results = simulator.get_last_results()
+            if results:
+                self.current_training_logger.info(f"✅ 固定配时仿真完成，结果: {results}")
+                yield end_progress, f"固定配时仿真完成！平均等待时间: {results.get('avg_waiting_time', 0):.2f}s"
+            else:
+                yield end_progress, "固定配时仿真完成"
+                
+        except Exception as e:
+            error_msg = f"❌ 固定配时仿真失败: {str(e)}"
+            self.current_training_logger.error(error_msg)
+            yield end_progress, error_msg
+    
     
     def _run_evaluation(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行评估"""
