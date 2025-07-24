@@ -2,9 +2,10 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom # 用于美化输出的XML格式
 import os
 import random # 引入random模块用于生成随机数
+from pathlib import Path
 
 def generate_rou_file(output_filename, flow_type='perhour', total_duration=3600,
-                      time_profiles=None, random_factor=0.0):
+                      time_profiles=None, random_factor=0.0, template_file=None):
     """
     动态生成一个 .rou.xml 文件，用于简单的交叉路口仿真。
     引入时间变化和随机性。
@@ -17,8 +18,8 @@ def generate_rou_file(output_filename, flow_type='perhour', total_duration=3600,
                               multiplier 用于调整该时间段内的流量。
                               如果为 None，则流量在整个 duration 内保持恒定。
                               例如：[(0, 3600, 1.0), (3600, 7200, 1.5)]
-        random_factor (float): 随机波动因子，例如 0.1 表示在 +/-10% 范围内随机波动。
-                               设置为 0 则不引入随机性。
+        random_factor (float): 随机波动因子，0.0 表示无随机性，0.1 表示 ±10% 的随机波动。
+        template_file (str): 可选的模板文件路径，用于提取路线定义。如果提供，将从该文件中提取路线信息。
     """
     routes_element = ET.Element('routes')
 
@@ -33,18 +34,48 @@ def generate_rou_file(output_filename, flow_type='perhour', total_duration=3600,
         'sigma': '0.5'
     })
 
-    # 2. 定义示例路线 (route)
-    # 这些边的ID (n_t, t_s等) 应该与你的 .net.xml 文件中的定义相匹配
-    example_routes = {
-        'route_ns': 'n_t t_s', # 北到南 (直行)
-        'route_ew': 'e_t t_w', # 东到西 (直行)
-        'route_sn': 's_t t_n', # 南到北 (直行)
-        'route_we': 'w_t t_e', # 西到东 (直行)
-        'route_ne': 'n_t t_e', # 北到东 (左转)
-        'route_es': 'e_t t_s', # 东到南 (左转)
-        'route_sw': 's_t t_w', # 南到西 (左转)
-        'route_wn': 'w_t t_n'  # 西到北 (左转)
-    }
+    # 2. 定义路线 (route)
+    # 优先从模板文件提取，否则使用默认示例路线
+    if template_file and Path(template_file).exists():
+        try:
+            # 从模板文件提取路线
+            template_tree = ET.parse(template_file)
+            template_root = template_tree.getroot()
+            
+            example_routes = {}
+            for route in template_root.findall('route'):
+                route_id = route.get('id')
+                edges = route.get('edges')
+                if route_id and edges:
+                    example_routes[route_id] = edges
+                    
+            print(f"从模板文件 {template_file} 提取到 {len(example_routes)} 条路线")
+            
+        except Exception as e:
+            print(f"从模板文件提取路线失败: {e}，使用默认路线")
+            # 使用默认示例路线
+            example_routes = {
+                'route_ns': 'n_t t_s', # 北到南 (直行)
+                'route_ew': 'e_t t_w', # 东到西 (直行)
+                'route_sn': 's_t t_n', # 南到北 (直行)
+                'route_we': 'w_t t_e', # 西到东 (直行)
+                'route_ne': 'n_t t_e', # 北到东 (左转)
+                'route_es': 'e_t t_s', # 东到南 (左转)
+                'route_sw': 's_t t_w', # 南到西 (左转)
+                'route_wn': 'w_t t_n'  # 西到北 (左转)
+            }
+    else:
+        # 使用默认示例路线
+        example_routes = {
+            'route_ns': 'n_t t_s', # 北到南 (直行)
+            'route_ew': 'e_t t_w', # 东到西 (直行)
+            'route_sn': 's_t t_n', # 南到北 (直行)
+            'route_we': 'w_t t_e', # 西到东 (直行)
+            'route_ne': 'n_t t_e', # 北到东 (左转)
+            'route_es': 'e_t t_s', # 东到南 (左转)
+            'route_sw': 's_t t_w', # 南到西 (左转)
+            'route_wn': 'w_t t_n'  # 西到北 (左转)
+        }
 
     for route_id, edges in example_routes.items():
         ET.SubElement(routes_element, 'route', {'id': route_id, 'edges': edges})
@@ -56,19 +87,30 @@ def generate_rou_file(output_filename, flow_type='perhour', total_duration=3600,
         'departLane': 'best'
     }
 
-    # 基础流量值 (这些是原始脚本中的值)
+    # 基础流量值 - 根据提取的路线动态生成
+    base_flow_values = {}
+    
     if flow_type == 'perhour':
-        base_flow_values = {
-            'route_ns': 300, 'route_ew': 300, 'route_sn': 300, 'route_we': 200,
-            'route_ne': 60, 'route_es': 80, 'route_sw': 80, 'route_wn': 50
-        }
         attr_name = 'vehsPerHour'
+        # 为每条路线设置基础流量
+        for route_id in example_routes.keys():
+            if 'we' in route_id.lower() or 'ew' in route_id.lower():
+                base_flow_values[route_id] = 300  # 东西向主干道
+            elif 'ns' in route_id.lower() or 'sn' in route_id.lower():
+                base_flow_values[route_id] = 300  # 南北向主干道
+            else:
+                base_flow_values[route_id] = 60   # 左转等其他路线
+                
     elif flow_type == 'probability':
-        base_flow_values = {
-            'route_ns': 0.4, 'route_ew': 0.3, 'route_sn': 0.3, 'route_we': 0.3,
-            'route_ne': 0.1, 'route_es': 0.2, 'route_sw': 0.2, 'route_wn': 0.1
-        }
         attr_name = 'probability'
+        # 为每条路线设置基础概率
+        for route_id in example_routes.keys():
+            if 'we' in route_id.lower() or 'ew' in route_id.lower():
+                base_flow_values[route_id] = 0.3  # 东西向主干道
+            elif 'ns' in route_id.lower() or 'sn' in route_id.lower():
+                base_flow_values[route_id] = 0.4  # 南北向主干道
+            else:
+                base_flow_values[route_id] = 0.1  # 左转等其他路线
     else:
         raise ValueError("flow_type 必须是 'perhour' 或 'probability'")
 

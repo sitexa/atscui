@@ -6,7 +6,7 @@ from atscui.ui.components.training_tab import TrainingTab
 from atscui.ui.components.visualization_tab import VisualizationTab
 from atscui.exceptions import UIError, ConfigurationError
 from atscui.logging_manager import get_logger
-from atscui.config_manager import config_manager
+from atscui.config.config_manager import config_manager
 
 
 class ATSCUI:

@@ -52,6 +52,7 @@ class FixedTimingEvaluator:
             min_green=10,
             max_green=60,
             fixed_ts=True,  # 关键参数：启用固定周期
+            single_agent=True,  # 关键修复：设置为单智能体模式，确保与 fixed_timing_simulator.py 一致
             sumo_seed=42,
             sumo_warnings=False
         )

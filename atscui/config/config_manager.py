@@ -42,7 +42,7 @@ class ConfigManager:
     def validate_config(self, config: Any) -> bool:
         """验证配置对象"""
         try:
-            # 检查必需字段
+            # 检查必需字段 
             required_fields = ['net_file', 'rou_file', 'algo_name']
             for field_name in required_fields:
                 if hasattr(config, field_name):

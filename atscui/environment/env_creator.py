@@ -1,9 +1,9 @@
 from sumo_core.envs.sumo_env import ContinuousSumoEnv, SumoEnv
-from atscui.utils.flow_generator import generate_curriculum_flow
+from atscui.utils.flow_generator import generate_curriculum_flow, extract_routes_from_template
 from pathlib import Path
 
 
-def createEnv(config):
+def createEnv(config): 
     # 延迟导入stable_baselines3模块
     from stable_baselines3.common.monitor import Monitor
     from stable_baselines3.common.vec_env import DummyVecEnv
@@ -18,14 +18,33 @@ def createEnv(config):
             {'name': 'high', 'duration_ratio': 0.3, 'flow_rate_multiplier': 2.0}
         ]
         
-        # 定义各路线的基础流量
-        # This part can be made more sophisticated, e.g., by reading from config
-        route_distribution = {
-            'route_we': config.base_flow_rate,
-            'route_ew': config.base_flow_rate,
-            'route_ns': config.base_flow_rate * 0.8,
-            'route_sn': config.base_flow_rate * 0.8,
-        }
+        # 从流量模板文件中提取路线信息
+        try:
+            available_routes = extract_routes_from_template(config.base_template_rou_file)
+            print(f"从模板文件中提取到 {len(available_routes)} 条路线: {list(available_routes.keys())}")
+            
+            # 根据提取的路线动态构建流量分布
+            route_distribution = {}
+            for route_id in available_routes.keys():
+                # 为东西向路线设置基础流量，南北向路线设置为基础流量的0.8倍
+                if 'we' in route_id.lower() or 'ew' in route_id.lower():
+                    route_distribution[route_id] = config.base_flow_rate
+                elif 'ns' in route_id.lower() or 'sn' in route_id.lower():
+                    route_distribution[route_id] = config.base_flow_rate * 0.8
+                else:
+                    # 其他路线（如左转等）设置为基础流量的0.6倍
+                    route_distribution[route_id] = config.base_flow_rate * 0.6
+                    
+        except Exception as e:
+            print(f"从模板文件提取路线失败: {e}")
+            print("使用默认的硬编码路线分布")
+            # 回退到硬编码的路线分布
+            route_distribution = {
+                'route_we': config.base_flow_rate,
+                'route_ew': config.base_flow_rate,
+                'route_ns': config.base_flow_rate * 0.8,
+                'route_sn': config.base_flow_rate * 0.8,
+            }
 
         # 定义输出的临时流量文件��径
         # It's good practice to save it in the same directory as the original route file

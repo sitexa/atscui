@@ -26,8 +26,6 @@ class BaseConfig:
     dynamic_flows_rate: int = 10
 
 
-
-
 @dataclass
 class RunningConfig(BaseConfig):
     operation = "PREDICT"
@@ -86,4 +84,3 @@ class SACConfig(AlgorithmConfig):
     ent_coef: str = 'auto'               # 自动调整熵系数
     gradient_steps: int = 1              # 梯度更新步数
     target_entropy: str = 'auto'         # 自动设置目标熵
-

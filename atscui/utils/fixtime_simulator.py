@@ -33,20 +33,18 @@ class FixedTimingSimulator:
         self.logger = logger or get_logger('fixed_timing_simulator')
         
         # 仿真参数
-        self.episode_length = getattr(config, 'num_seconds', 3600)
-        self.delta_time = 5
-        self.num_episodes = 1  # 固定配时通常只需要运行一次
+        self.episode_length = getattr(config, 'num_seconds', 7200)
+        self.delta_time = getattr(config, 'delta_time', 5)
+        self.num_episodes = getattr(config, 'n_eval_episodes', 1)
         
         # 流量文件路径
         self.route_file_path = config.rou_file
-        self.use_dynamic_flows = False
-        self.dynamic_start_time = 0
-        self.flows_rate = getattr(config, 'dynamic_flows_rate', 10)
         
         self.logger.info(f"🚦 固定配时仿真器初始化完成")
         self.logger.info(f"📁 网络文件: {config.net_file}")
         self.logger.info(f"📁 路由文件: {config.rou_file}")
         self.logger.info(f"⏱️  仿真时长: {self.episode_length}秒")
+        self.logger.info(f"⏳  配置参数: {config}")
     
     def prepare_traffic_files(self) -> Iterator[Tuple[int, str]]:
         """
@@ -97,8 +95,15 @@ class FixedTimingSimulator:
                 
                 self.logger.info(f"使用基础流量: {base_flow}, 路线分布: {route_distribution}")
                 
-                # 定义输出的流量文件路径
-                generated_rou_file = str(Path(self.config.rou_file).parent / "curriculum.rou.xml")
+                # 定义输出的流量文件路径，使用与out_csv_name相同的基础名称
+                if hasattr(self.config, 'out_csv_name') and self.config.out_csv_name:
+                    # 从out_csv_name提取基础名称，替换扩展名为.rou.xml
+                    csv_path = Path(self.config.out_csv_name)
+                    base_name = csv_path.stem  # 获取不带扩展名的文件名
+                    generated_rou_file = str(csv_path.parent / f"{base_name}_curriculum.rou.xml")
+                else:
+                    # 回退到原有逻辑
+                    generated_rou_file = str(Path(self.config.rou_file).parent / "curriculum.rou.xml")
                 self.logger.info(f"生成的课程文件将保存到: {generated_rou_file}")
                 
                 yield 15, "正在生成课程学习流量文件..."
@@ -149,28 +154,23 @@ class FixedTimingSimulator:
         env = SumoEnv(
             net_file=self.config.net_file,
             route_file=self.route_file_path,
-            out_csv_name=None,  # 不使用内置CSV输出
+            out_csv_name=self.config.csv_path,
             use_gui=getattr(self.config, 'gui', False),
             num_seconds=self.episode_length,
             delta_time=self.delta_time,
-            yellow_time=3,
-            min_green=10,
-            max_green=60,
-            fixed_ts=True,  
+            # yellow_time=3,
+            # min_green=10,
+            # max_green=60,
+            fixed_ts=True,
             single_agent=True, 
             sumo_seed=42,
-            sumo_warnings=False,
-            # 动态流量参数（如果启用课程学习）
-            use_dynamic_flows=self.use_dynamic_flows,
-            dynamic_start_time=self.dynamic_start_time,
-            flows_rate=self.flows_rate
+            sumo_warnings=False
         )
         return env
     
     def run_simulation(self) -> Iterator[Tuple[int, str]]:
         """
         运行固定配时仿真
-        
         Yields:
             Tuple[int, str]: (进度百分比, 状态消息)
         """
@@ -204,25 +204,41 @@ class FixedTimingSimulator:
             }
             
             # 运行仿真
-            total_steps = self.episode_length // self.delta_time
-            
-            while not done and step < total_steps:
+            self.logger.info(f"开始仿真循环，目标时长: {self.episode_length}秒")
+            while not done:
                 # 固定周期模式下不需要动作，环境会自动按照固定周期运行
-                obs, reward, terminated, truncated, info = env.step({})
-                done = terminated or truncated  # 正确处理done条件
+                step_result = env.step({})
+                if len(step_result) == 5:
+                    # 新版本 Gymnasium 格式: obs, reward, terminated, truncated, info
+                    obs, reward, terminated, truncated, info = step_result
+                    done = terminated or truncated
+                else:
+                    # 旧版本格式: obs, reward, done, info
+                    obs, reward, done, info = step_result
                 step += 1
+                
+                # 记录前几步的详细信息
+                if step <= 5:
+                    elapsed_time = step * self.delta_time
+                    self.logger.info(f"步骤 {step}: 时间={elapsed_time}s, done={done}, info keys: {list(info.keys()) if isinstance(info, dict) else 'N/A'}")
                 
                 # 更新进度
                 if step % 100 == 0:
-                    progress = 30 + int((step / total_steps) * 60)  # 30-90%的进度范围
                     elapsed_time = step * self.delta_time
-                    yield progress, f"仿真进行中... {elapsed_time}/{self.episode_length}秒 ({progress-30:.1f}%)"
+                    progress = 30 + int((elapsed_time / self.episode_length) * 60)  # 30-90%的进度范围
+                    yield progress, f"仿真进行中... {elapsed_time}/{self.episode_length}秒 ({(elapsed_time/self.episode_length)*100:.1f}%)"
+                    self.logger.info(f"仿真进度: {elapsed_time}/{self.episode_length}秒 ({(elapsed_time/self.episode_length)*100:.1f}%)")
             
             # 更新实际运行的步数
             episode_metrics['total_steps'] = step
             
+            # 记录仿真结束信息
+            final_time = step * self.delta_time
+            self.logger.info(f"仿真结束: 总步数={step}, 仿真时间={final_time}s, 目标时间={self.episode_length}s")
+            self.logger.info(f"最终info内容: {info if isinstance(info, dict) else 'N/A'}")
+            
             # 提取最终指标
-            episode_metrics.update(self._extract_final_metrics(info))
+            episode_metrics.update(self._extract_final_metrics(info, 1, step))
             episode_metrics['total_steps'] = step
             
             all_results.append(episode_metrics)
@@ -257,7 +273,7 @@ class FixedTimingSimulator:
         """
         return getattr(self, '_last_results', {})
     
-    def _extract_final_metrics(self, info) -> Dict[str, float]:
+    def _extract_final_metrics(self, info, episode=None, step=None) -> Dict[str, float]:
         """
         从仿真信息中提取最终指标
         参考fixed_timing_evaluation.py的实现
@@ -275,18 +291,30 @@ class FixedTimingSimulator:
         try:
             # 从info中提取系统级指标
             if isinstance(info, dict):
-                # 使用正确的键名提取指标
-                if 'system_mean_waiting_time' in info:
-                    metrics['avg_waiting_time'] = float(info['system_mean_waiting_time'])
+                # 尝试不同的键名
+                waiting_keys = ['system_mean_waiting_time', 'mean_waiting_time', 'avg_waiting_time']
+                for key in waiting_keys:
+                    if key in info:
+                        metrics['avg_waiting_time'] = float(info[key])
+                        break
                 
-                if 'system_mean_speed' in info:
-                    metrics['avg_speed'] = float(info['system_mean_speed'])
+                speed_keys = ['system_mean_speed', 'mean_speed', 'avg_speed']
+                for key in speed_keys:
+                    if key in info:
+                        metrics['avg_speed'] = float(info[key])
+                        break
                 
-                if 'system_total_stopped' in info:
-                    metrics['avg_queue_length'] = float(info['system_total_stopped'])
+                queue_keys = ['system_total_stopped', 'total_stopped', 'avg_queue_length']
+                for key in queue_keys:
+                    if key in info:
+                        metrics['avg_queue_length'] = float(info[key])
+                        break
                 
-                if 'system_total_throughput' in info:
-                    metrics['total_throughput'] = float(info['system_total_throughput'])
+                throughput_keys = ['system_total_arrived', 'total_arrived', 'total_throughput']
+                for key in throughput_keys:
+                    if key in info:
+                        metrics['total_throughput'] = float(info[key])
+                        break
                 
                 if 'system_mean_travel_time' in info:
                     metrics['avg_travel_time'] = float(info['system_mean_travel_time'])

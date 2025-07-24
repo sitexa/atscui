@@ -20,8 +20,8 @@ from atscui.exceptions import (
     FileOperationError, ValidationError, ConfigurationError
 )
 from atscui.logging_manager import get_logger, log_manager
-from atscui.config_manager import config_manager, ConfigManager
-from atscui.utils.fixed_timing_simulator import FixedTimingSimulator
+from atscui.config.config_manager import ConfigManager
+from atscui.utils.fixtime_simulator import FixedTimingSimulator
 
 
 class ParameterParser:
@@ -288,18 +288,26 @@ class TrainingTab:
                             label="运行功能"
                         )
             
-            with gr.Accordion("课程学习参数 (Curriculum Learning Parameters)", open=True):
+            with gr.Accordion("流量配置参数 (Traffic Configuration Parameters)", open=True):
                 with gr.Row():
-                    template_file = gr.File(
-                        label="路线模板文件 (.rou.xml)", 
-                        value="zfdx/net/zfdx.rou.template.xml", 
+                    # 静态/动态流量开关
+                    traffic_mode = gr.Radio(
+                        choices=["静态流量", "动态流量"],
+                        value="静态流量",
+                        label="流量模式"
+                    )
+                with gr.Row():
+                    route_file = gr.File(
+                        label="路线流量文件 (.rou.xml)", 
+                        value="zfdx/net/zfdx-perhour.rou.xml", 
                         file_types=[".xml", ".rou.xml"]
                     )
                     total_simulation_seconds = gr.Number(
                         value=3600, 
                         label="仿真总秒数 (Total Seconds)"
                     )
-                with gr.Row():
+                # 动态流量参数（仅在动态流量模式下显示）
+                with gr.Row(visible=False) as dynamic_params_row:
                     static_phase_ratio = gr.Slider(
                         0.1, 1.0, 
                         value=0.7, 
@@ -346,13 +354,23 @@ class TrainingTab:
             self.progress = progress
             self.output_msg = output_msg
             
+            # 流量模式切换事件
+            def toggle_dynamic_params(mode):
+                return gr.update(visible=(mode == "动态流量"))
+            
+            traffic_mode.change(
+                toggle_dynamic_params,
+                inputs=[traffic_mode],
+                outputs=[dynamic_params_row]
+            )
+            
             # 绑定事件
             run_button.click(
                 self.run_training,
                 inputs=[
-                    network_file, template_file, algorithm, operation,
+                    network_file, route_file, algorithm, operation,
                     total_timesteps, total_simulation_seconds, gui_checkbox, prediction_steps,
-                    static_phase_ratio, base_flow_rate, dynamic_phase_rate
+                    traffic_mode, static_phase_ratio, base_flow_rate, dynamic_phase_rate
                 ],
                 outputs=[progress, output_msg]
             )
@@ -368,13 +386,14 @@ class TrainingTab:
 
     def run_training(self,
                      network_file,
-                     template_file,
+                     route_file,
                      algorithm,
                      operation,
                      total_timesteps,
                      total_simulation_seconds,
                      gui_checkbox,
                      prediction_steps,
+                     traffic_mode,
                      static_phase_ratio,
                      base_flow_rate,
                      dynamic_phase_rate) -> Iterator[Tuple[int, str]]:
@@ -382,12 +401,17 @@ class TrainingTab:
         
         Args:
             network_file: 网络文件
-            demand_file: 需求文件
+            route_file: 路线流量文件（静态模式）或路线模板文件（动态模式）
             algorithm: 算法名称
             operation: 操作类型
             total_timesteps: 总训练步数
-            num_seconds: 仿真秒数
+            total_simulation_seconds: 仿真总秒数
             gui_checkbox: 是否使用GUI
+            prediction_steps: 预测步数
+            traffic_mode: 流量模式（"静态流量" 或 "动态流量"）
+            static_phase_ratio: 静态阶段时长占比（仅动态模式使用）
+            base_flow_rate: 基础流率（仅动态模式使用）
+            dynamic_phase_rate: 动态阶段生成速率（仅动态模式使用）
             
         Yields:
             Tuple[int, str]: (进度百分比, 输出信息)
@@ -403,16 +427,18 @@ class TrainingTab:
             
             # 初始验证
             yield from self._validate_inputs(
-                network_file, template_file, total_timesteps, total_simulation_seconds
+                network_file, route_file, total_timesteps, total_simulation_seconds
             )
             
             # 解析参数
             yield 5, "正在解析训练参数..."
             config = self._parse_training_config(
-                network_file, template_file, algorithm, operation,
+                network_file, route_file, algorithm, operation,
                 total_timesteps, total_simulation_seconds, gui_checkbox, prediction_steps,
-                static_phase_ratio, base_flow_rate, dynamic_phase_rate
+                traffic_mode, static_phase_ratio, base_flow_rate, dynamic_phase_rate
             )
+
+            self.current_training_logger.info(f"配置参数: {config}")
             
             self.current_training_logger.info(f"开始{operation}操作")
             yield 10, f"配置解析完成，开始{operation}操作..."
@@ -439,13 +465,13 @@ class TrainingTab:
             if self.current_training_logger:
                 self.current_training_logger.info("训练任务结束")
     
-    def _validate_inputs(self, network_file, template_file, 
+    def _validate_inputs(self, network_file, route_file, 
                         total_timesteps, total_simulation_seconds) -> Iterator[Tuple[int, str]]:
         """验证输入参数"""
         yield 1, "正在验证输入参数..."
         
-        if not network_file or not template_file:
-            raise ValidationError("请上传路网模型和路线模板文件")
+        if not network_file or not route_file:
+            raise ValidationError("请上传路网模型和路线流量文件")
         
         if not isinstance(total_timesteps, int) or total_timesteps <= 0:
             raise ValidationError("训练步数必须是正整数")
@@ -456,45 +482,60 @@ class TrainingTab:
         # 验证文件路径
         try:
             utility_manager.validate_file_path(network_file.name, must_exist=True)
-            utility_manager.validate_file_path(template_file.name, must_exist=True)
+            utility_manager.validate_file_path(route_file.name, must_exist=True)
         except ValidationError as e:
             raise ValidationError(f"文件验证失败: {e}")
         
         yield 3, "输入参数验证完成"
     
-    def _parse_training_config(self, network_file, template_file, algorithm, 
+    def _parse_training_config(self, network_file, route_file, algorithm, 
                               operation, total_timesteps, total_simulation_seconds, 
-                              gui_checkbox, prediction_steps,
+                              gui_checkbox, prediction_steps, traffic_mode,
                               static_phase_ratio, base_flow_rate, dynamic_phase_rate) -> BaseConfig:
         """解析训练配置"""
         try:
             import shlex
             network_path = shlex.quote(network_file.name)
-            template_path = shlex.quote(template_file.name)
+            route_path = shlex.quote(route_file.name)
             use_gui = bool(gui_checkbox)
             
-            # 约定生成的rou文件与模板文件在同一目录下
-            rou_file_dir = os.path.dirname(template_file.name)
-            # rou_file 参数现在用作目录占位符
-            rou_file_placeholder = shlex.quote(rou_file_dir)
-
-            config = parseParams(
-                net_file=network_path,
-                rou_file=rou_file_placeholder, # 实际的rou文件将动态生成
-                algo_name=algorithm,
-                operation=operation,
-                tensorboard_logs="logs",
-                total_timesteps=total_timesteps,
-                num_seconds=total_simulation_seconds, # 使用新的总仿真秒数
-                gui=use_gui,
-                prediction_steps=prediction_steps,
-                use_curriculum_learning=True, # 硬编码为True
-                curriculum_template_file=template_path,
-                curriculum_total_seconds=total_simulation_seconds,
-                curriculum_static_ratio=static_phase_ratio,
-                curriculum_base_flow=base_flow_rate,
-                curriculum_dynamic_rate=dynamic_phase_rate
-            )
+            # 根据流量模式决定配置参数
+            if traffic_mode == "静态流量":
+                # 静态流量模式：直接使用上传的流量文件
+                config = parseParams(
+                    net_file=network_path,
+                    rou_file=route_path,  # 直接使用流量文件
+                    algo_name=algorithm,
+                    operation=operation,
+                    tensorboard_logs="logs",
+                    total_timesteps=total_timesteps,
+                    num_seconds=total_simulation_seconds,
+                    gui=use_gui,
+                    prediction_steps=prediction_steps,
+                    use_curriculum_learning=False  # 静态流量不使用课程学习
+                )
+            else:
+                # 动态流量模式：使用课程学习，将路线文件作为模板
+                rou_file_dir = os.path.dirname(route_file.name)
+                rou_file_placeholder = shlex.quote(rou_file_dir)
+                
+                config = parseParams(
+                    net_file=network_path,
+                    rou_file=rou_file_placeholder,  # 实际的rou文件将动态生成
+                    algo_name=algorithm,
+                    operation=operation,
+                    tensorboard_logs="logs",
+                    total_timesteps=total_timesteps,
+                    num_seconds=total_simulation_seconds,
+                    gui=use_gui,
+                    prediction_steps=prediction_steps,
+                    use_curriculum_learning=True,  # 动态流量使用课程学习
+                    curriculum_template_file=route_path,  # 将路线文件作为模板
+                    curriculum_total_seconds=total_simulation_seconds,
+                    curriculum_static_ratio=static_phase_ratio,
+                    curriculum_base_flow=base_flow_rate,
+                    curriculum_dynamic_rate=dynamic_phase_rate
+                )
             
             return config
             
@@ -531,23 +572,10 @@ class TrainingTab:
         agent = None
         
         try:
-            # 检查是否为FIXTIME算法，进行特殊处理
             if config.algo_name.upper() == "FIXTIME":
-                # FIXTIME算法特殊处理流程
                 yield 15, "正在创建FIXTIME仿真环境..."
-                env = createEnv(config)
-                if not env:
-                    raise EnvironmentError("FIXTIME环境创建失败")
-                yield 18, "FIXTIME环境创建完成"
-                
-                yield 20, "正在创建FIXTIME智能体..."
-                agent = self.agent_factory.create_agent(env, config)
-                model = agent  # FIXTIME使用agent对象
-                yield 25, "FIXTIME模式：使用固定配时方案，跳过模型加载..."
-                
-                # FIXTIME算法直接进入统一仿真，不区分操作类型
-                yield from self._run_fixtime_simulation(model, config, 30, 90)
-                return  # FIXTIME处理完成，直接返回
+                yield from self._run_fixtime_simulation(config, 30, 90)
+                return  
             
             yield 15, "正在创建仿真环境..."
             env = createEnv(config)
@@ -607,8 +635,9 @@ class TrainingTab:
             except Exception as e:
                 self.logger.warning(f"清理资源时出现警告: {e}")
     
-    def _run_fixtime_simulation(self, model, config: BaseConfig, 
-                                start_progress: int = 30, end_progress: int = 90) -> Iterator[Tuple[int, str]]:
+    def _run_fixtime_simulation(self, config: BaseConfig, 
+                                start_progress: int = 30, 
+                                end_progress: int = 90) -> Iterator[Tuple[int, str]]:
         """运行固定配时仿真
         
         Args:
@@ -617,7 +646,6 @@ class TrainingTab:
             start_progress: 起始进度
             end_progress: 结束进度
         """
-        from atscui.utils.fixed_timing_simulator import FixedTimingSimulator
         
         yield start_progress, "初始化固定配时仿真器..."
         self.current_training_logger.info(f"开始固定配时仿真，仿真时长: {getattr(config, 'num_seconds', 3600)}秒")
@@ -654,7 +682,6 @@ class TrainingTab:
             error_msg = f"❌ 固定配时仿真失败: {str(e)}"
             self.current_training_logger.error(error_msg)
             yield end_progress, error_msg
-    
     
     def _run_evaluation(self, model, config: BaseConfig) -> Iterator[Tuple[int, str]]:
         """运行评估"""
@@ -851,16 +878,3 @@ class TrainingTab:
             
         except Exception as e:
             raise TrainingError(f"执行所有操作失败: {e}")
-    
-    def stop_training(self):
-        """停止训练"""
-        try:
-            self.is_training = False
-            self.logger.info("用户请求停止训练")
-            if self.current_training_logger:
-                self.current_training_logger.info("训练被用户停止")
-            return "训练已停止"
-        except Exception as e:
-            error_msg = f"停止训练时出错: {e}"
-            self.logger.error(error_msg)
-            return error_msg
