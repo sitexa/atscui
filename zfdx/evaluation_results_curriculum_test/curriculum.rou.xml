@@ -1,0 +1,21 @@
+<routes>
+    
+    <route id="route_ns" edges="n_t t_s" />
+    
+    <route id="route_ne" edges="n_t t_e" />
+
+    
+    <route id="route_ew" edges="e_t t_w" />
+    
+    <route id="route_es" edges="e_t t_s" />
+
+    
+    <route id="route_sn" edges="s_t t_n" />
+    
+    <route id="route_sw" edges="s_t t_w" />
+
+    
+    <route id="route_we" edges="w_t t_e" />
+    
+    <route id="route_wn" edges="w_t t_n" />
+<flow id="low_route_ns" type="DEFAULT_VEHTYPE" route="route_ns" begin="0" end="162" vehsPerHour="40" /><flow id="low_route_ne" type="DEFAULT_VEHTYPE" route="route_ne" begin="0" end="162" vehsPerHour="30" /><flow id="low_route_ew" type="DEFAULT_VEHTYPE" route="route_ew" begin="0" end="162" vehsPerHour="50" /><flow id="low_route_es" type="DEFAULT_VEHTYPE" route="route_es" begin="0" end="162" vehsPerHour="30" /><flow id="low_route_sn" type="DEFAULT_VEHTYPE" route="route_sn" begin="0" end="162" vehsPerHour="40" /><flow id="low_route_sw" type="DEFAULT_VEHTYPE" route="route_sw" begin="0" end="162" vehsPerHour="30" /><flow id="low_route_we" type="DEFAULT_VEHTYPE" route="route_we" begin="0" end="162" vehsPerHour="50" /><flow id="low_route_wn" type="DEFAULT_VEHTYPE" route="route_wn" begin="0" end="162" vehsPerHour="30" /><flow id="medium_route_ns" type="DEFAULT_VEHTYPE" route="route_ns" begin="162" end="378" vehsPerHour="80" /><flow id="medium_route_ne" type="DEFAULT_VEHTYPE" route="route_ne" begin="162" end="378" vehsPerHour="60" /><flow id="medium_route_ew" type="DEFAULT_VEHTYPE" route="route_ew" begin="162" end="378" vehsPerHour="100" /><flow id="medium_route_es" type="DEFAULT_VEHTYPE" route="route_es" begin="162" end="378" vehsPerHour="60" /><flow id="medium_route_sn" type="DEFAULT_VEHTYPE" route="route_sn" begin="162" end="378" vehsPerHour="80" /><flow id="medium_route_sw" type="DEFAULT_VEHTYPE" route="route_sw" begin="162" end="378" vehsPerHour="60" /><flow id="medium_route_we" type="DEFAULT_VEHTYPE" route="route_we" begin="162" end="378" vehsPerHour="100" /><flow id="medium_route_wn" type="DEFAULT_VEHTYPE" route="route_wn" begin="162" end="378" vehsPerHour="60" /><flow id="high_route_ns" type="DEFAULT_VEHTYPE" route="route_ns" begin="378" end="540" vehsPerHour="160" /><flow id="high_route_ne" type="DEFAULT_VEHTYPE" route="route_ne" begin="378" end="540" vehsPerHour="120" /><flow id="high_route_ew" type="DEFAULT_VEHTYPE" route="route_ew" begin="378" end="540" vehsPerHour="200" /><flow id="high_route_es" type="DEFAULT_VEHTYPE" route="route_es" begin="378" end="540" vehsPerHour="120" /><flow id="high_route_sn" type="DEFAULT_VEHTYPE" route="route_sn" begin="378" end="540" vehsPerHour="160" /><flow id="high_route_sw" type="DEFAULT_VEHTYPE" route="route_sw" begin="378" end="540" vehsPerHour="120" /><flow id="high_route_we" type="DEFAULT_VEHTYPE" route="route_we" begin="378" end="540" vehsPerHour="200" /><flow id="high_route_wn" type="DEFAULT_VEHTYPE" route="route_wn" begin="378" end="540" vehsPerHour="120" /></routes>

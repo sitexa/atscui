@@ -195,6 +195,11 @@ class BaseSumoEnv(gym.Env):
         self.vehicle_start_times = {}  # 记录每个车辆的出发时间
 
     def _create_traffic_signals(self, conn):
+        # 在fixed_ts模式下，不创建TrafficSignal对象，让SUMO完全自主控制
+        if self.fixed_ts:
+            self.traffic_signals = {}
+            return
+            
         if isinstance(self.reward_fn, dict):
             self.traffic_signals = {
                 ts: self.traffic_signal_class(
@@ -270,6 +275,9 @@ class BaseSumoEnv(gym.Env):
         self.vehicles = dict()
 
         if self.single_agent:
+            if self.fixed_ts:
+                # 在fixed_ts模式下返回虚拟观察值
+                return np.array([0.0], dtype=np.float32), self._compute_info()
             return self._compute_observations()[self.ts_ids[0]], self._compute_info()
         else:
             self._compute_observations()
@@ -280,6 +288,10 @@ class BaseSumoEnv(gym.Env):
         return self.sumo.simulation.getTime()
 
     def _run_steps(self):
+        if self.fixed_ts:
+            for _ in range(self.delta_time):
+                self._sumo_step()
+            return
         time_to_act = False
         while not time_to_act:
             self._sumo_step()
@@ -303,29 +315,41 @@ class BaseSumoEnv(gym.Env):
         return info
 
     def _compute_observations(self):
+        if self.fixed_ts:
+            return {}
         self.observations.update(
-            {ts: self.traffic_signals[ts].compute_observation() for ts in self.ts_ids if self.traffic_signals[ts].time_to_act or self.fixed_ts}
+            {ts: self.traffic_signals[ts].compute_observation() for ts in self.ts_ids if self.traffic_signals[ts].time_to_act}
         )
-        return {ts: self.observations[ts].copy() for ts in self.observations.keys() if self.traffic_signals[ts].time_to_act or self.fixed_ts}
+        return {ts: self.observations[ts].copy() for ts in self.observations.keys() if self.traffic_signals[ts].time_to_act}
 
     def _compute_rewards(self):
+        if self.fixed_ts:
+            return {}
         self.rewards.update(
-            {ts: self.traffic_signals[ts].compute_reward() for ts in self.ts_ids if self.traffic_signals[ts].time_to_act or self.fixed_ts}
+            {ts: self.traffic_signals[ts].compute_reward() for ts in self.ts_ids if self.traffic_signals[ts].time_to_act}
         )
-        return {ts: self.rewards[ts] for ts in self.rewards.keys() if self.traffic_signals[ts].time_to_act or self.fixed_ts}
+        return {ts: self.rewards[ts] for ts in self.rewards.keys() if self.traffic_signals[ts].time_to_act}
 
     @property
     def observation_space(self):
+        if self.fixed_ts or not self.traffic_signals:
+            return gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
         return self.traffic_signals[self.ts_ids[0]].observation_space
 
     @property
     def action_space(self):
+        if self.fixed_ts or not self.traffic_signals:
+            return gym.spaces.Discrete(1)
         return self.traffic_signals[self.ts_ids[0]].action_space
 
     def observation_spaces(self, ts_id: str):
+        if self.fixed_ts or not self.traffic_signals:
+            return gym.spaces.Box(low=0, high=1, shape=(1,), dtype=np.float32)
         return self.traffic_signals[ts_id].observation_space
 
     def action_spaces(self, ts_id: str) -> gym.spaces.Discrete:
+        if self.fixed_ts or not self.traffic_signals:
+            return gym.spaces.Discrete(1)
         return self.traffic_signals[ts_id].action_space
 
     def _generate_vehicles(self):
@@ -360,31 +384,38 @@ class BaseSumoEnv(gym.Env):
         
         self.sumo.simulationStep()
         
-        # 在仿真步骤后记录到达的车辆并计算行程时间（新增功能，不影响原有逻辑）
+        # 记录到达车辆的行程时间
         arrived_vehicles = self.sumo.simulation.getArrivedIDList()
-        for veh_id in arrived_vehicles:
-            if veh_id in self.vehicle_start_times:
-                travel_time = self.sim_step - self.vehicle_start_times[veh_id]
-                self.trip_times.append(travel_time)
-                del self.vehicle_start_times[veh_id]
+        if arrived_vehicles:
+            for veh_id in arrived_vehicles:
+                if veh_id in self.vehicle_start_times:
+                    trip_time = self.sim_step - self.vehicle_start_times[veh_id]
+                    self.trip_times.append(trip_time)
+                    del self.vehicle_start_times[veh_id]
 
     def _get_system_info(self):
         vehicles = self.sumo.vehicle.getIDList()
         speeds = [self.sumo.vehicle.getSpeed(vehicle) for vehicle in vehicles]
         waiting_times = [self.sumo.vehicle.getWaitingTime(vehicle) for vehicle in vehicles]
         return {
-            # 原有指标（保持不变）
             "system_total_stopped": sum(int(speed < 0.1) for speed in speeds),
             "system_total_waiting_time": sum(waiting_times),
             "system_mean_waiting_time": 0.0 if len(vehicles) == 0 else np.mean(waiting_times),
             "system_mean_speed": 0.0 if len(vehicles) == 0 else np.mean(speeds),
-            
-            # 新增指标（不影响原有功能）
-            "system_total_throughput": self.sumo.simulation.getArrivedNumber(),
+            "system_total_throughput": len(self.trip_times),  # 使用ATSCUI自己统计的到达车辆数
             "system_mean_travel_time": 0.0 if not self.trip_times else np.mean(self.trip_times),
         }
 
     def _get_per_agent_info(self):
+        if self.fixed_ts or not self.traffic_signals:
+            # 在fixed_ts模式下返回基本信息
+            info = {}
+            info["agents_total_stopped"] = 0
+            info["agents_total_accumulated_waiting_time"] = 0
+            info["agents_total_throughput"] = len(self.trip_times)
+            info["agents_mean_travel_time"] = np.mean(self.trip_times) if self.trip_times else 0.0
+            return info
+            
         stopped = [self.traffic_signals[ts].get_total_queued() for ts in self.ts_ids]
         accumulated_waiting_time = [sum(self.traffic_signals[ts].get_accumulated_waiting_time_per_lane()) for ts in self.ts_ids]
         average_speed = [self.traffic_signals[ts].get_average_speed() for ts in self.ts_ids]
@@ -397,7 +428,7 @@ class BaseSumoEnv(gym.Env):
         info["agents_total_accumulated_waiting_time"] = sum(accumulated_waiting_time)
         
         # 新增：总吞吐量和平均行程时间（累积指标）
-        info["agents_total_throughput"] = self.sumo.simulation.getArrivedNumber()
+        info["agents_total_throughput"] = len(self.trip_times)  # 使用ATSCUI自己统计的到达车辆数
         info["agents_mean_travel_time"] = np.mean(self.trip_times) if self.trip_times else 0.0
         
         return info
@@ -405,6 +436,17 @@ class BaseSumoEnv(gym.Env):
     def close(self):
         if self.sumo is None:
             return
+        
+        # 在仿真结束时打印最终统计信息
+        if hasattr(self, 'trip_times') and self.trip_times:
+            print(f"\n=== 仿真结束统计 (Episode {self.episode}) ===")
+            print(f"总完成车辆数: {len(self.trip_times)}")
+            print(f"平均行程时间: {np.mean(self.trip_times):.2f} 秒")
+            print(f"最短行程时间: {min(self.trip_times):.2f} 秒")
+            print(f"最长行程时间: {max(self.trip_times):.2f} 秒")
+            print(f"行程时间标准差: {np.std(self.trip_times):.2f} 秒")
+            print("=" * 40)
+        
         if not LIBSUMO:
             traci.switch(self.label)
         traci.close()
@@ -449,6 +491,9 @@ class SumoEnv(BaseSumoEnv):
 
     def _calculate_cci(self, ts_id):
         """Calculate the Composite Congestion Index (CCI) for a given traffic signal."""
+        if self.fixed_ts or not self.traffic_signals:
+            return 0.0
+            
         # 1. Max Queue Length
         max_queue = max(self.traffic_signals[ts_id].get_lanes_queue())
         norm_queue = min(max_queue / 50.0, 1.0)  # Normalize by a typical max queue
@@ -503,11 +548,16 @@ class SumoEnv(BaseSumoEnv):
             pprint(info)
 
         if self.single_agent:
+            if self.fixed_ts:
+                # 在fixed_ts模式下返回虚拟值
+                return np.array([0.0], dtype=np.float32), 0.0, terminated, truncated, info
             return observations[self.ts_ids[0]], rewards[self.ts_ids[0]], terminated, truncated, info
         else:
             return observations, rewards, dones, info
 
     def _apply_actions(self, actions):
+        if self.fixed_ts:
+            return  # 在fixed_ts模式下不执行任何动作
         if self.single_agent:
             if self.traffic_signals[self.ts_ids[0]].time_to_act:
                 self.traffic_signals[self.ts_ids[0]].set_next_phase(actions)

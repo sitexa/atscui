@@ -1,7 +1,16 @@
 <nodes>
+    <!-- 入口节点 -->
     <node id="n" x="0.0" y="300.0" type="priority"/>
     <node id="s" x="0.0" y="-300.0" type="priority"/>
     <node id="e" x="300.0" y="0.0" type="priority"/>
     <node id="w" x="-300.0" y="0.0" type="priority"/>
+    
+    <!-- 中心交叉口 -->
     <node id="t" x="0.0" y="0.0" type="traffic_light" tlType="actuated" tl="tl_1"/>
+    
+    <!-- 出口节点 -->
+    <node id="n_out" x="0.0" y="600.0" type="priority"/>
+    <node id="s_out" x="0.0" y="-600.0" type="priority"/>
+    <node id="e_out" x="600.0" y="0.0" type="priority"/>
+    <node id="w_out" x="-600.0" y="0.0" type="priority"/>
 </nodes>

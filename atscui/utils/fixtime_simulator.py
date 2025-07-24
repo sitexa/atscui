@@ -202,7 +202,7 @@ class FixedTimingSimulator:
                 'total_fuel_consumption': 0,
                 'total_co2_emission': 0
             }
-            
+             
             # 运行仿真
             self.logger.info(f"开始仿真循环，目标时长: {self.episode_length}秒")
             while not done:

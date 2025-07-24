@@ -11,52 +11,250 @@
 import os
 import sys
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from datetime import datetime
-import glob
 from pathlib import Path
 
 # 添加项目路径
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from sumo_core.envs.sumo_env import SumoEnv
+from comparison_analyzer import ComparisonAnalyzer
+from atscui.utils.flow_generator import generate_curriculum_flow, extract_routes_from_template
+import xml.etree.ElementTree as ET
 
 class FixedTimingEvaluator:
     """固定周期交通信号评估器 - 专注于固定周期仿真和结果对比分析"""
     
-    def __init__(self, net_file, route_file, output_dir="evaluation_results"):
+    def __init__(self, net_file, route_file, output_dir="evaluation_results", 
+                 use_curriculum_learning=False, base_template_rou_file=None):
         self.net_file = net_file
         self.route_file = route_file
         self.output_dir = output_dir
+        self.use_curriculum_learning = use_curriculum_learning
+        self.base_template_rou_file = base_template_rou_file or route_file
         
         # 创建输出目录
         os.makedirs(output_dir, exist_ok=True)
+        
+        # 初始化对比分析器
+        self.comparison_analyzer = ComparisonAnalyzer(output_dir)
         
         print(f"🚦 固定周期交通信号评估器初始化完成")
         print(f"📁 网络文件: {net_file}")
         print(f"📁 路由文件: {route_file}")
         print(f"📁 输出目录: {output_dir}")
+        print(f"🎓 课程学习: {'启用' if use_curriculum_learning else '禁用'}")
+        if use_curriculum_learning:
+            print(f"📚 模板文件: {self.base_template_rou_file}")
     
-    def create_fixed_timing_env(self, episode_length=3600, delta_time=5):
+    def _calculate_static_flow_rate(self, route_file):
+        """计算静态流量文件的总流量率"""
+        try:
+            tree = ET.parse(route_file)
+            root = tree.getroot()
+            
+            total_flow_rate = 0
+            flow_count = 0
+            
+            # 查找所有flow元素
+            for flow in root.findall('flow'):
+                veh_per_hour = flow.get('vehsPerHour')
+                if veh_per_hour:
+                    total_flow_rate += float(veh_per_hour)
+                    flow_count += 1
+            
+            print(f"📊 静态流量文件分析: {flow_count}个流量定义，总流量率: {total_flow_rate} veh/h")
+            return total_flow_rate
+            
+        except Exception as e:
+            print(f"⚠️  计算静态流量率失败: {e}")
+            return 0
+    
+    def _calculate_dynamic_average_flow_rate(self, route_file, stage_definitions):
+        """计算动态流量文件的平均流量率（考虑时间权重）"""
+        try:
+            tree = ET.parse(route_file)
+            root = tree.getroot()
+            
+            # 按阶段分组流量
+            stage_flows = {}
+            for flow in root.findall('flow'):
+                flow_id = flow.get('id')
+                veh_per_hour = float(flow.get('vehsPerHour', 0))
+                
+                # 提取阶段名称（low_, medium_, high_）
+                stage_name = None
+                for stage in stage_definitions:
+                    if flow_id.startswith(stage['name'] + '_'):
+                        stage_name = stage['name']
+                        break
+                
+                if stage_name:
+                    if stage_name not in stage_flows:
+                        stage_flows[stage_name] = 0
+                    stage_flows[stage_name] += veh_per_hour
+            
+            # 计算时间加权平均流量率
+            total_weighted_flow = 0
+            for stage in stage_definitions:
+                stage_name = stage['name']
+                duration_ratio = stage['duration_ratio']
+                stage_flow = stage_flows.get(stage_name, 0)
+                
+                weighted_flow = stage_flow * duration_ratio
+                total_weighted_flow += weighted_flow
+                print(f"📊 {stage_name}阶段: {stage_flow} veh/h × {duration_ratio:.1%} = {weighted_flow:.1f}")
+            
+            print(f"📊 动态流量时间加权平均: {total_weighted_flow:.1f} veh/h")
+            return total_weighted_flow
+            
+        except Exception as e:
+            print(f"⚠️  计算动态平均流量率失败: {e}")
+            return 0
+    
+    def create_fixed_timing_env(self, episode_length=3600, delta_time=4):
         """创建固定周期仿真环境"""
+        # 处理课程学习路由文件
+        final_route_file = self.route_file
+        use_dynamic_flows = False
+        dynamic_start_time = 999999
+        
+        if self.use_curriculum_learning:
+            final_route_file = self._generate_curriculum_route_file(episode_length)
+            use_dynamic_flows = True
+            dynamic_start_time = int(episode_length * 0.3)  # 30%时间为静态阶段
+            print(f"📚 使用课程学习路由文件: {final_route_file}")
+            print(f"⏰ 动态流量开始时间: {dynamic_start_time}秒")
+        
         env = SumoEnv(
             net_file=self.net_file,
-            route_file=self.route_file,
+            route_file=final_route_file,
             out_csv_name=f"{self.output_dir}/fixed_timing",
             use_gui=False,
             num_seconds=episode_length,
             delta_time=delta_time,
-            yellow_time=3,
-            min_green=10,
-            max_green=60,
-            fixed_ts=True,  # 关键参数：启用固定周期
-            single_agent=True,  # 关键修复：设置为单智能体模式，确保与 fixed_timing_simulator.py 一致
+            fixed_ts=True,  # 让SUMO完全按配置文件运行
+            single_agent=True,
             sumo_seed=42,
-            sumo_warnings=False
+            sumo_warnings=False,  # 关闭警告以减少输出
+            use_dynamic_flows=use_dynamic_flows,
+            dynamic_start_time=dynamic_start_time,
+            flows_rate=1.0  # 默认流量倍率
         )
         return env
+    
+    def _generate_curriculum_route_file(self, episode_length):
+        """生成课程学习路由文件"""
+        try:
+            # 计算静态流量文件的总流量率用于标准化
+            static_total_flow = self._calculate_static_flow_rate(self.route_file)
+            
+            # 定义课程阶段
+            stage_definitions = [
+                {'name': 'low', 'duration_ratio': 0.3, 'flow_rate_multiplier': 0.5},
+                {'name': 'medium', 'duration_ratio': 0.4, 'flow_rate_multiplier': 1.0},
+                {'name': 'high', 'duration_ratio': 0.3, 'flow_rate_multiplier': 2.0}
+            ]
+            
+            # 计算动态流量的平均倍数，用于标准化
+            avg_multiplier = sum(stage['duration_ratio'] * stage['flow_rate_multiplier'] 
+                               for stage in stage_definitions)
+            print(f"📊 动态流量平均倍数: {avg_multiplier:.2f}")
+            
+            # 从流量模板文件中提取路线信息
+            try:
+                available_routes = extract_routes_from_template(self.base_template_rou_file)
+                print(f"📚 从模板文件中提取到 {len(available_routes)} 条路线: {list(available_routes.keys())}")
+                
+                # 根据提取的路线动态构建流量分布，使用静态流量总量进行标准化
+                route_distribution = {}
+                if static_total_flow > 0:
+                    # 基于静态流量总量和平均倍数进行标准化计算
+                    # 目标：动态流量平均总量 = 静态流量总量
+                    # 公式：base_flow_rate * avg_multiplier * route_count = static_total_flow
+                    base_flow_rate = static_total_flow / (avg_multiplier * len(available_routes))
+                    print(f"📊 流量标准化计算:")
+                    print(f"   静态流量总量: {static_total_flow} veh/h")
+                    print(f"   动态平均倍数: {avg_multiplier:.2f}")
+                    print(f"   路线数量: {len(available_routes)}")
+                    print(f"   标准化基础流量率: {base_flow_rate:.1f} veh/h")
+                else:
+                    # 回退到固定值
+                    base_flow_rate = 100
+                    print(f"📊 使用默认基础流量率: {base_flow_rate} veh/h")
+                
+                for route_id in available_routes.keys():
+                    # 为东西向路线设置基础流量，南北向路线设置为基础流量的0.8倍
+                    if 'we' in route_id.lower() or 'ew' in route_id.lower():
+                        route_distribution[route_id] = base_flow_rate
+                    elif 'ns' in route_id.lower() or 'sn' in route_id.lower():
+                        route_distribution[route_id] = base_flow_rate * 0.8
+                    else:
+                        # 其他路线（如左转等）设置为基础流量的0.6倍
+                        route_distribution[route_id] = base_flow_rate * 0.6
+                        
+            except Exception as e:
+                print(f"⚠️  从模板文件提取路线失败: {e}")
+                print("使用默认的硬编码路线分布")
+                # 回退到硬编码的路线分布
+                if static_total_flow > 0:
+                    # 基于静态流量总量和平均倍数进行标准化计算
+                    # 计算标准化基础流量率
+                    route_count = 4  # 硬编码路线数量
+                    base_flow_rate = static_total_flow / (avg_multiplier * route_count)
+                    print(f"📊 硬编码路线流量标准化:")
+                    print(f"   静态流量总量: {static_total_flow} veh/h")
+                    print(f"   动态平均倍数: {avg_multiplier:.2f}")
+                    print(f"   标准化基础流量率: {base_flow_rate:.1f} veh/h")
+                    
+                    # 按比例分配流量（东西向较高，南北向较低）
+                    route_distribution = {
+                        'route_we': base_flow_rate * 1.25,  # 东西向增加25%
+                        'route_ew': base_flow_rate * 1.25,  # 东西向增加25%
+                        'route_ns': base_flow_rate * 0.75,  # 南北向减少25%
+                        'route_sn': base_flow_rate * 0.75,  # 南北向减少25%
+                    }
+                else:
+                    route_distribution = {
+                        'route_we': 100,
+                        'route_ew': 100,
+                        'route_ns': 80,
+                        'route_sn': 80,
+                    }
+            
+            # 定义输出的临时流量文件路径
+            generated_rou_file = str(Path(self.output_dir) / "curriculum.rou.xml")
+            print(f"📚 课程学习文件将保存到: {generated_rou_file}")
+            
+            # 调用生成器
+            static_phase_duration = generate_curriculum_flow(
+                base_route_file=self.base_template_rou_file,
+                output_file=generated_rou_file,
+                total_sim_seconds=int(episode_length * 0.3),  # 30%时间为静态阶段
+                stage_definitions=stage_definitions,
+                route_distribution=route_distribution
+            )
+            
+            # 验证生成的动态流量文件
+            dynamic_average_flow = self._calculate_dynamic_average_flow_rate(generated_rou_file, stage_definitions)
+            if static_total_flow > 0:
+                flow_ratio = dynamic_average_flow / static_total_flow
+                print(f"📊 流量标准化验证:")
+                print(f"   静态流量总量: {static_total_flow:.1f} veh/h")
+                print(f"   动态流量时间加权平均: {dynamic_average_flow:.1f} veh/h")
+                print(f"   流量比率: {flow_ratio:.3f} (目标: ~1.000)")
+                if abs(flow_ratio - 1.0) < 0.1:
+                    print(f"✅ 流量标准化成功！")
+                else:
+                    print(f"⚠️  流量标准化偏差较大，可能需要调整")
+            
+            print(f"✅ 课程学习路由文件生成成功: {generated_rou_file}")
+            return generated_rou_file
+            
+        except Exception as e:
+            print(f"❌ 生成课程学习路由文件失败: {e}")
+            print(f"🔄 回退使用原始路由文件: {self.route_file}")
+            return self.route_file
     
     def run_fixed_timing_simulation(self, num_episodes=5, episode_length=3600, delta_time=5):
         """运行固定周期仿真"""
@@ -91,8 +289,15 @@ class FixedTimingEvaluator:
                 
                 # 运行仿真
                 while not done:
-                    # 固定周期模式下不需要动作，环境会自动按照固定周期运行
-                    obs, reward, done, info = env.step({})
+                    # 固定周期模式下传递空动作，让信号灯按原始配时运行
+                    step_result = env.step({})
+                    if len(step_result) == 5:
+                        # 新版本 Gymnasium 格式: obs, reward, terminated, truncated, info
+                        obs, reward, terminated, truncated, info = step_result
+                        done = terminated or truncated
+                    else:
+                        # 旧版本格式: obs, reward, done, info
+                        obs, reward, done, info = step_result
                     step += 1
                     
                     # 每100步输出一次进度
@@ -112,7 +317,9 @@ class FixedTimingEvaluator:
                 env.close()
                 
             except Exception as e:
+                import traceback
                 print(f"❌ 第 {episode + 1} 轮仿真失败: {e}")
+                print(f"详细错误信息: {traceback.format_exc()}")
                 continue
         
         if all_results:
@@ -135,6 +342,9 @@ class FixedTimingEvaluator:
         }
         
         try:
+            # 打印info内容以便调试
+            print(f"📊 Info内容: {info}")
+            
             # 从info中提取系统级指标
             if isinstance(info, dict):
                 # 尝试不同的键名
@@ -156,7 +366,7 @@ class FixedTimingEvaluator:
                         metrics['avg_queue_length'] = float(info[key])
                         break
                 
-                throughput_keys = ['system_total_arrived', 'total_arrived', 'total_throughput']
+                throughput_keys = ['system_total_throughput', 'system_total_arrived', 'total_arrived', 'total_throughput']
                 for key in throughput_keys:
                     if key in info:
                         metrics['total_throughput'] = float(info[key])
@@ -177,323 +387,70 @@ class FixedTimingEvaluator:
     
     def find_agent_results(self):
         """查找现有的智能体结果文件"""
-        agent_files = []
-        
-        # 扩大搜索范围，查找项目中的智能体结果文件
-        search_dirs = [
-            self.output_dir,
-            "../outs",
-            ".."
-        ]
-        
-        csv_patterns = [
-            "*DQN*.csv", 
-            "*PPO*.csv",
-            "*A2C*.csv",
-            "*SAC*.csv"
-        ]
-        
-        for search_dir in search_dirs:
-            if os.path.exists(search_dir):
-                for pattern in csv_patterns:
-                    full_pattern = os.path.join(search_dir, pattern)
-                    files = glob.glob(full_pattern)
-                    agent_files.extend(files)
-        
-        # 去重并过滤掉固定周期结果文件
-        agent_files = list(set(agent_files))
-        agent_files = [f for f in agent_files if 'fixed' not in os.path.basename(f).lower()]
-        
-        if agent_files:
-            print(f"📊 找到 {len(agent_files)} 个智能体结果文件:")
-            for file in agent_files:
-                print(f"   - {file}")
-        else:
-            print("⚠️  未找到智能体结果文件，将只进行固定周期仿真")
-            print("💡 提示：请确保智能体训练/评估结果已保存为CSV格式")
-        
-        return agent_files
+        return self.comparison_analyzer.find_agent_results()
     
     def compare_with_agent_results(self, fixed_results, agent_files):
         """与智能体结果进行对比分析"""
-        if not agent_files:
-            print("⚠️  没有智能体结果文件可供对比")
-            print("📊 将只显示固定周期仿真结果")
-            self._show_fixed_timing_summary(fixed_results)
-            return
-        
-        print("\n📊 开始对比分析...")
-        
-        # 加载智能体结果
-        agent_data_list = []
-        for file in agent_files:
-            try:
-                df = pd.read_csv(file)
-                # 添加文件来源信息
-                algorithm = self._extract_algorithm_from_filename(file)
-                df['algorithm'] = algorithm
-                df['source_file'] = os.path.basename(file)
-                agent_data_list.append(df)
-                print(f"✅ 成功加载: {file} (算法: {algorithm})")
-            except Exception as e:
-                print(f"❌ 加载失败 {file}: {e}")
-        
-        if not agent_data_list:
-            print("❌ 没有成功加载的智能体结果文件")
-            self._show_fixed_timing_summary(fixed_results)
-            return
-        
-        # 合并智能体数据
-        agent_data = pd.concat(agent_data_list, ignore_index=True)
-        
-        # 准备对比数据
-        fixed_df = pd.DataFrame(fixed_results)
-        fixed_df['control_type'] = 'Fixed Timing'
-        fixed_df['algorithm'] = 'Fixed Timing'
-        
-        agent_df = agent_data.copy()
-        agent_df['control_type'] = 'Agent Control'
-        
-        # 标准化列名
-        fixed_df = self._standardize_columns(fixed_df)
-        agent_df = self._standardize_columns(agent_df)
-        
-        # 找到共同的指标列
-        metric_columns = ['avg_waiting_time', 'avg_queue_length', 'avg_speed', 
-                         'total_throughput', 'avg_travel_time']
-        available_metrics = [col for col in metric_columns if col in fixed_df.columns and col in agent_df.columns]
-        
-        if len(available_metrics) < 2:
-            print("❌ 数据列不匹配，无法进行对比")
-            print(f"固定周期数据列: {list(fixed_df.columns)}")
-            print(f"智能体数据列: {list(agent_df.columns)}")
-            self._show_fixed_timing_summary(fixed_results)
-            return
-        
-        # 选择用于对比的列
-        comparison_columns = available_metrics + ['control_type', 'algorithm']
-        fixed_subset = fixed_df[comparison_columns]
-        agent_subset = agent_df[comparison_columns]
-        
-        # 合并数据
-        comparison_data = pd.concat([fixed_subset, agent_subset], ignore_index=True)
-        
-        # 生成对比报告
-        self._generate_comparison_report(comparison_data, available_metrics)
-        
-        # 生成对比图表
-        self._generate_comparison_plots(comparison_data, available_metrics)
-        
-        # 保存对比数据
-        comparison_file = f"{self.output_dir}/comparison_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        comparison_data.to_csv(comparison_file, index=False)
-        print(f"💾 对比数据已保存: {comparison_file}")
-        
-        return comparison_data
-    
-    def _extract_algorithm_from_filename(self, filename):
-        """从文件名中提取算法名称"""
-        filename_lower = os.path.basename(filename).lower()
-        if 'dqn' in filename_lower:
-            return 'DQN'
-        elif 'ppo' in filename_lower:
-            return 'PPO'
-        elif 'a2c' in filename_lower:
-            return 'A2C'
-        elif 'sac' in filename_lower:
-            return 'SAC'
-        elif 'agent' in filename_lower:
-            return 'Agent'
-        else:
-            return 'Unknown'
-    
-    def _show_fixed_timing_summary(self, fixed_results):
-        """显示固定周期仿真结果摘要"""
-        if not fixed_results:
-            return
-            
-        df = pd.DataFrame(fixed_results)
-        print("\n" + "="*60)
-        print("📊 固定周期交通信号仿真结果摘要")
-        print("="*60)
-        
-        metrics = ['avg_waiting_time', 'avg_queue_length', 'avg_speed', 
-                  'total_throughput', 'avg_travel_time']
-        
-        for metric in metrics:
-            if metric in df.columns:
-                mean_val = df[metric].mean()
-                std_val = df[metric].std()
-                print(f"{metric:20s}: {mean_val:8.2f} ± {std_val:6.2f}")
-        
-        print("="*60)
-    
-    def _standardize_columns(self, df):
-        """标准化列名"""
-        column_mapping = {
-            'waiting_time': 'avg_waiting_time',
-            'queue_length': 'avg_queue_length', 
-            'speed': 'avg_speed',
-            'throughput': 'total_throughput',
-            'travel_time': 'avg_travel_time',
-            'mean_waiting_time': 'avg_waiting_time',
-            'mean_queue_length': 'avg_queue_length',
-            'mean_speed': 'avg_speed',
-            'mean_travel_time': 'avg_travel_time',
-            # 添加更多可能的列名映射
-            'system_mean_waiting_time': 'avg_waiting_time',
-            'system_mean_speed': 'avg_speed',
-            'system_total_stopped': 'avg_queue_length'
-        }
-        
-        df_renamed = df.rename(columns=column_mapping)
-        return df_renamed
-    
-    def _generate_comparison_report(self, comparison_data, metrics):
-        """生成对比分析报告"""
-        print("\n" + "="*80)
-        print("📊 固定周期 vs 智能体控制 - 性能比较报告")
-        print("="*80)
-        
-        # 按控制类型分组统计
-        grouped = comparison_data.groupby('control_type')[metrics].agg(['mean', 'std'])
-        
-        print("\n📈 关键性能指标对比:")
-        print("-" * 80)
-        print(f"{'指标':<20} {'固定周期':<15} {'智能体控制':<15} {'改善幅度':<15}")
-        print("-" * 80)
-        
-        improvements = {}
-        
-        for metric in metrics:
-            if metric in grouped.columns.get_level_values(0):
-                fixed_mean = grouped.loc['Fixed Timing', (metric, 'mean')]
-                agent_mean = grouped.loc['Agent Control', (metric, 'mean')] if 'Agent Control' in grouped.index else None
-                
-                if agent_mean is not None:
-                    # 计算改善幅度（对于等待时间、排队长度等，减少是好的）
-                    if 'waiting' in metric or 'queue' in metric or 'travel' in metric:
-                        improvement = (fixed_mean - agent_mean) / fixed_mean * 100
-                    else:  # 对于速度、吞吐量等，增加是好的
-                        improvement = (agent_mean - fixed_mean) / fixed_mean * 100
-                    
-                    improvements[metric] = improvement
-                    
-                    print(f"{metric:<20} {fixed_mean:<15.2f} {agent_mean:<15.2f} {improvement:+.1f}%")
-                else:
-                    print(f"{metric:<20} {fixed_mean:<15.2f} {'N/A':<15} {'N/A':<15}")
-        
-        # 按算法详细对比
-        if 'algorithm' in comparison_data.columns:
-            print("\n🔍 按算法详细对比:")
-            print("-" * 80)
-            
-            algo_grouped = comparison_data.groupby('algorithm')[metrics].agg(['mean', 'std'])
-            
-            for metric in metrics:
-                if metric in algo_grouped.columns.get_level_values(0):
-                    print(f"\n{metric}:")
-                    for algo in algo_grouped.index:
-                        mean_val = algo_grouped.loc[algo, (metric, 'mean')]
-                        std_val = algo_grouped.loc[algo, (metric, 'std')]
-                        print(f"  {algo:<15}: {mean_val:8.2f} ± {std_val:6.2f}")
-        
-        # 总结
-        print("\n🎯 总结:")
-        if improvements:
-            avg_improvement = np.mean(list(improvements.values()))
-            print(f"✅ 平均性能改善: {avg_improvement:+.1f}%")
-            
-            best_metric = max(improvements.items(), key=lambda x: x[1])
-            print(f"🏆 最佳改善指标: {best_metric[0]} ({best_metric[1]:+.1f}%)")
-            
-            # 显示具体改善情况
-            for metric, improvement in improvements.items():
-                if improvement > 0:
-                    print(f"✅ {metric}: 改善 {improvement:.1f}%")
-                else:
-                    print(f"❌ {metric}: 下降 {abs(improvement):.1f}%")
-        else:
-            print("⚠️  无法计算改善幅度")
-        
-        print("="*80)
-    
-    def _generate_comparison_plots(self, comparison_data, metrics):
-        """生成对比图表"""
-        try:
-            # 设置中文字体
-            plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
-            plt.rcParams['axes.unicode_minus'] = False
-            
-            # 1. 箱线图对比
-            n_metrics = min(len(metrics), 4)  # 最多显示4个指标
-            fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-            fig.suptitle('固定周期 vs 智能体控制 - 性能对比 (箱线图)', fontsize=16, fontweight='bold')
-            
-            axes_flat = axes.flatten()
-            
-            for i, metric in enumerate(metrics[:4]):
-                if i < len(axes_flat):
-                    ax = axes_flat[i]
-                    
-                    # 创建箱线图
-                    sns.boxplot(data=comparison_data, x='control_type', y=metric, ax=ax)
-                    ax.set_title(f'{metric.replace("_", " ").title()}')
-                    ax.set_xlabel('控制方式')
-                    ax.set_ylabel('数值')
-                    ax.tick_params(axis='x', rotation=45)
-            
-            # 隐藏多余的子图
-            for i in range(n_metrics, len(axes_flat)):
-                axes_flat[i].set_visible(False)
-            
-            plt.tight_layout()
-            plot_file1 = f"{self.output_dir}/comparison_boxplots_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-            plt.savefig(plot_file1, dpi=300, bbox_inches='tight')
-            print(f"📊 箱线图已保存: {plot_file1}")
-            plt.close()
-            
-            # 2. 算法对比柱状图（如果有多个算法）
-            if 'algorithm' in comparison_data.columns and len(comparison_data['algorithm'].unique()) > 1:
-                fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-                fig.suptitle('不同算法性能对比 (柱状图)', fontsize=16, fontweight='bold')
-                
-                axes_flat = axes.flatten()
-                
-                for i, metric in enumerate(metrics[:4]):
-                    if i < len(axes_flat):
-                        ax = axes_flat[i]
-                        
-                        # 计算各算法的平均值
-                        algo_means = comparison_data.groupby('algorithm')[metric].mean()
-                        
-                        # 创建柱状图
-                        bars = ax.bar(algo_means.index, algo_means.values)
-                        ax.set_title(f'{metric.replace("_", " ").title()}')
-                        ax.set_xlabel('算法')
-                        ax.set_ylabel('平均值')
-                        ax.tick_params(axis='x', rotation=45)
-                        
-                        # 在柱子上显示数值
-                        for bar in bars:
-                            height = bar.get_height()
-                            ax.text(bar.get_x() + bar.get_width()/2., height,
-                                   f'{height:.2f}', ha='center', va='bottom')
-                
-                # 隐藏多余的子图
-                for i in range(n_metrics, len(axes_flat)):
-                    axes_flat[i].set_visible(False)
-                
-                plt.tight_layout()
-                plot_file2 = f"{self.output_dir}/algorithm_comparison_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                plt.savefig(plot_file2, dpi=300, bbox_inches='tight')
-                print(f"📊 算法对比图已保存: {plot_file2}")
-                plt.close()
-            
-        except Exception as e:
-            print(f"⚠️  生成图表时出错: {e}")
-            print("💡 提示: 可能需要安装中文字体或调整matplotlib配置")
+        return self.comparison_analyzer.compare_with_agent_results(fixed_results, agent_files)
 
+def test_curriculum_learning():
+    """测试课程学习功能"""
+    print("\n🧪 开始测试课程学习功能...")
+    print("=" * 50)
+    
+    # 配置文件路径
+    net_file = "./zfdx/net/zfdx.net.xml"
+    route_file = "./zfdx/net/zfdx-perhour.rou.xml"
+    template_file = "./zfdx/net/zfdx.rou.template.xml"  # 模板文件
+    output_dir = "./zfdx/evaluation_results_curriculum_test"
+    
+    # 检查文件是否存在
+    files_to_check = [
+        (net_file, "网络文件"),
+        (route_file, "路由文件"),
+        (template_file, "模板文件")
+    ]
+    
+    for file_path, file_desc in files_to_check:
+        if not os.path.exists(file_path):
+            print(f"❌ {file_desc}不存在: {file_path}")
+            print(f"💡 跳过课程学习测试，使用普通路由文件: {route_file}")
+            template_file = route_file  # 回退到普通路由文件
+            break
+    
+    try:
+        # 创建启用课程学习的评估器
+        evaluator = FixedTimingEvaluator(
+            net_file=net_file,
+            route_file=route_file,
+            output_dir=output_dir,
+            use_curriculum_learning=True,
+            base_template_rou_file=template_file
+        )
+        
+        print("\n🔄 运行课程学习测试仿真...")
+        test_results = evaluator.run_fixed_timing_simulation(
+            num_episodes=1,
+            episode_length=1800,  # 30分钟测试
+            delta_time=5
+        )
+        
+        if test_results:
+            print("\n✅ 课程学习测试成功！")
+            print(f"📊 测试结果: 等待时间={test_results[0]['avg_waiting_time']:.2f}s")
+            
+            # 保存测试结果
+            test_df = pd.DataFrame(test_results)
+            test_file = f"{output_dir}/curriculum_test_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            test_df.to_csv(test_file, index=False)
+            print(f"💾 测试结果已保存: {test_file}")
+        else:
+            print("❌ 课程学习测试失败")
+            
+    except Exception as e:
+        print(f"❌ 课程学习测试出错: {e}")
+        import traceback
+        traceback.print_exc()
 
 def main():
     """主函数 - 运行固定周期评估和对比分析"""
@@ -501,9 +458,32 @@ def main():
     print("=" * 60)
     
     # 配置文件路径
-    net_file = "net/zfdx.net.xml"
-    route_file = "net/zfdx-perhour.rou.xml"
+    net_file = "./net/zfdx.net.xml"
+    route_file = "./net/zfdx-perhour.rou.xml"
+    template_file = "./net/zfdx.rou.template.xml"  # 课程学习模板文件
+    output_dir = "./evaluation_results"
     
+    # 课程学习开关 - 可以通过环境变量或命令行参数控制
+    use_curriculum = os.getenv('USE_CURRICULUM_LEARNING', 'false').lower() == 'true'
+    
+    # 检查命令行参数
+    if len(sys.argv) > 1:
+        if '--curriculum' in sys.argv or '-c' in sys.argv:
+            use_curriculum = True
+            print("🎓 通过命令行参数启用课程学习")
+        elif '--test-curriculum' in sys.argv or '-tc' in sys.argv:
+            test_curriculum_learning()
+            return
+        elif '--help' in sys.argv or '-h' in sys.argv:
+            print("\n📋 使用说明:")
+            print("  python fixed_timing_evaluation.py              # 普通固定周期仿真")
+            print("  python fixed_timing_evaluation.py --curriculum # 启用课程学习")
+            print("  python fixed_timing_evaluation.py --test-curriculum # 测试课程学习功能")
+            print("  python fixed_timing_evaluation.py --help       # 显示帮助信息")
+            print("\n🌍 环境变量:")
+            print("  USE_CURRICULUM_LEARNING=true                   # 启用课程学习")
+            return
+
     # 检查文件是否存在
     if not os.path.exists(net_file):
         print(f"❌ 网络文件不存在: {net_file}")
@@ -515,8 +495,20 @@ def main():
         print("💡 请确保在zfdx目录下运行此脚本")
         return
     
+    # 检查课程学习模板文件
+    if use_curriculum and not os.path.exists(template_file):
+        print(f"⚠️  课程学习模板文件不存在: {template_file}")
+        print(f"🔄 回退使用普通路由文件进行课程学习")
+        template_file = route_file
+    
     # 创建评估器
-    evaluator = FixedTimingEvaluator(net_file, route_file)
+    evaluator = FixedTimingEvaluator(
+        net_file=net_file,
+        route_file=route_file,
+        output_dir=output_dir,
+        use_curriculum_learning=use_curriculum,
+        base_template_rou_file=template_file if use_curriculum else None
+    )
     
     try:
         # 运行固定周期仿真
@@ -524,9 +516,9 @@ def main():
         print("⏱️  预计需要几分钟时间，请耐心等待...")
         
         fixed_results = evaluator.run_fixed_timing_simulation(
-            num_episodes=10,      # 运行5轮仿真
-            episode_length=3600, # 每轮1小时
-            delta_time=5         # 5秒步长
+            num_episodes=1,      # 运行1轮仿真
+            episode_length=3600, # 延长至2小时以获得更多车辆到达数据
+            delta_time=5         
         )
         
         if not fixed_results:
@@ -550,10 +542,14 @@ def main():
         
         print("\n🎉 评估完成！")
         print(f"📁 所有结果保存在: {evaluator.output_dir}")
+        print(f"🎓 课程学习状态: {'启用' if use_curriculum else '禁用'}")
         print("\n📋 使用说明:")
         print("  1. 固定周期仿真结果已保存为CSV格式")
         print("  2. 如有智能体结果，对比分析图表已生成")
         print("  3. 可以将智能体训练/评估的CSV结果文件放入evaluation_results目录进行对比")
+        if use_curriculum:
+            print("  4. 课程学习已启用，仿真包含动态流量变化")
+        print("\n💡 提示: 使用 --help 查看更多选项")
         
     except KeyboardInterrupt:
         print("\n⚠️  用户中断了仿真")
