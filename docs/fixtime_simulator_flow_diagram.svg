@@ -1,0 +1,196 @@
+<svg width="1400" height="1600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .title { font-family: Arial, sans-serif; font-size: 20px; font-weight: bold; fill: #333; }
+      .start-end { fill: #4caf50; stroke: #2e7d32; stroke-width: 2; }
+      .process { fill: #2196f3; stroke: #1565c0; stroke-width: 2; rx: 5; }
+      .decision { fill: #ff9800; stroke: #e65100; stroke-width: 2; }
+      .input-output { fill: #9c27b0; stroke: #6a1b9a; stroke-width: 2; }
+      .subprocess { fill: #00bcd4; stroke: #00838f; stroke-width: 2; rx: 5; }
+      .text { font-family: Arial, sans-serif; font-size: 11px; fill: white; text-anchor: middle; font-weight: bold; }
+      .text-dark { font-family: Arial, sans-serif; font-size: 11px; fill: #333; text-anchor: middle; font-weight: bold; }
+      .arrow { stroke: #333; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .label { font-family: Arial, sans-serif; font-size: 10px; fill: #333; text-anchor: middle; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+    </marker>
+  </defs>
+  
+  <!-- 标题 -->
+  <text x="700" y="30" class="title">FixedTimingSimulator 程序运行流程图</text>
+
+  <!-- 开始 -->
+  <ellipse cx="700" cy="80" rx="60" ry="25" class="start-end" />
+  <text x="700" y="85" class="text">开始</text>
+
+  <!-- 初始化 -->
+  <rect x="620" y="130" width="160" height="50" class="process" />
+  <text x="700" y="150" class="text">初始化 FixedTimingSimulator</text>
+  <text x="700" y="165" class="text">(__init__)</text>
+
+  <!-- 计算流量参数 -->
+  <rect x="620" y="210" width="160" height="50" class="subprocess" />
+  <text x="700" y="230" class="text">计算流量参数</text>
+  <text x="700" y="245" class="text">(静态/动态流量)</text>
+
+  <!-- 决策：课程学习 -->
+  <polygon points="700,290 750,320 700,350 650,320" class="decision" />
+  <text x="700" y="325" class="text">课程学习</text>
+  <text x="700" y="340" class="text">模式?</text>
+
+  <!-- 准备交通文件 -->
+  <rect x="420" y="380" width="160" height="50" class="subprocess" />
+  <text x="500" y="400" class="text">准备交通文件</text>
+  <text x="500" y="415" class="text">(prepare_traffic_files)</text>
+
+  <!-- 生成课程学习流量 -->
+  <rect x="220" y="460" width="160" height="50" class="input-output" />
+  <text x="300" y="480" class="text">生成课程学习流量</text>
+  <text x="300" y="495" class="text">(generate_curriculum_flow)</text>
+
+  <!-- 提取路由 -->
+  <rect x="420" y="460" width="160" height="50" class="input-output" />
+  <text x="500" y="480" class="text">提取路由模板</text>
+  <text x="500" y="495" class="text">(extract_routes_from_template)</text>
+
+  <!-- 创建环境 -->
+  <rect x="820" y="380" width="160" height="50" class="subprocess" />
+  <text x="900" y="400" class="text">创建仿真环境</text>
+  <text x="900" y="415" class="text">(create_fixed_timing_env)</text>
+
+  <!-- 运行仿真循环 -->
+  <rect x="620" y="540" width="160" height="50" class="process" />
+  <text x="700" y="560" class="text">运行仿真循环</text>
+  <text x="700" y="575" class="text">(run_simulation)</text>
+
+  <!-- 决策：更多轮次 -->
+  <polygon points="700,620 750,650 700,680 650,650" class="decision" />
+  <text x="700" y="655" class="text">还有</text>
+  <text x="700" y="670" class="text">轮次?</text>
+
+  <!-- 单次仿真 -->
+  <rect x="420" y="720" width="160" height="50" class="subprocess" />
+  <text x="500" y="740" class="text">单次仿真</text>
+  <text x="500" y="755" class="text">(_run_single_episode)</text>
+
+  <!-- SUMO环境 -->
+  <rect x="220" y="800" width="160" height="50" class="input-output" />
+  <text x="300" y="820" class="text">SUMO 环境交互</text>
+  <text x="300" y="835" class="text">(SumoEnv)</text>
+
+  <!-- 提取指标 -->
+  <rect x="420" y="800" width="160" height="50" class="subprocess" />
+  <text x="500" y="820" class="text">提取仿真指标</text>
+  <text x="500" y="835" class="text">(_extract_final_metrics)</text>
+
+  <!-- 保存结果 -->
+  <rect x="620" y="880" width="160" height="50" class="process" />
+  <text x="700" y="900" class="text">保存结果</text>
+  <text x="700" y="915" class="text">(save_results)</text>
+
+  <!-- 结束 -->
+  <ellipse cx="700" cy="960" rx="60" ry="25" class="start-end" />
+  <text x="700" y="965" class="text">结束</text>
+  
+  <!-- 流程箭头 -->
+  <!-- 开始 -> 初始化 -->
+  <line x1="700" y1="105" x2="700" y2="130" class="arrow" />
+  
+  <!-- 初始化 -> 计算流量参数 -->
+  <line x1="700" y1="180" x2="700" y2="210" class="arrow" />
+  
+  <!-- 计算流量参数 -> 课程学习决策 -->
+  <line x1="700" y1="260" x2="700" y2="290" class="arrow" />
+  
+  <!-- 课程学习决策 -> 准备交通文件 (是) -->
+  <line x1="650" y1="320" x2="500" y2="380" class="arrow" />
+  <text x="575" y="350" class="label">是</text>
+  
+  <!-- 课程学习决策 -> 创建环境 (否) -->
+  <line x1="750" y1="320" x2="900" y2="380" class="arrow" />
+  <text x="825" y="350" class="label">否</text>
+  
+  <!-- 准备交通文件 -> 生成课程学习流量 -->
+  <line x1="420" y1="405" x2="380" y2="460" class="arrow" />
+  
+  <!-- 准备交通文件 -> 提取路由模板 -->
+  <line x1="500" y1="430" x2="500" y2="460" class="arrow" />
+  
+  <!-- 生成课程学习流量 -> 运行仿真循环 -->
+  <line x1="380" y1="485" x2="650" y2="540" class="arrow" />
+  
+  <!-- 提取路由模板 -> 运行仿真循环 -->
+  <line x1="500" y1="510" x2="650" y2="540" class="arrow" />
+  
+  <!-- 创建环境 -> 运行仿真循环 -->
+  <line x1="900" y1="430" x2="750" y2="540" class="arrow" />
+  
+  <!-- 运行仿真循环 -> 更多轮次决策 -->
+  <line x1="700" y1="590" x2="700" y2="620" class="arrow" />
+  
+  <!-- 更多轮次决策 -> 单次仿真 (是) -->
+  <line x1="650" y1="650" x2="500" y2="720" class="arrow" />
+  <text x="575" y="685" class="label">是</text>
+  
+  <!-- 单次仿真 -> SUMO环境交互 -->
+  <line x1="420" y1="745" x2="380" y2="800" class="arrow" />
+  
+  <!-- 单次仿真 -> 提取仿真指标 -->
+  <line x1="500" y1="770" x2="500" y2="800" class="arrow" />
+  
+  <!-- SUMO环境交互 -> 提取仿真指标 -->
+  <line x1="380" y1="825" x2="420" y2="825" class="arrow" />
+  
+  <!-- 提取仿真指标 -> 更多轮次决策 (循环) -->
+  <line x1="580" y1="825" x2="800" y2="825" class="arrow" />
+  <line x1="800" y1="825" x2="800" y2="650" class="arrow" />
+  <line x1="800" y1="650" x2="750" y2="650" class="arrow" />
+  
+  <!-- 更多轮次决策 -> 保存结果 (否) -->
+  <line x1="700" y1="680" x2="700" y2="880" class="arrow" />
+  <text x="710" y="780" class="label">否</text>
+  
+  <!-- 保存结果 -> 结束 -->
+  <line x1="700" y1="930" x2="700" y2="935" class="arrow" />
+  
+  <!-- 图例说明 -->
+  <rect x="50" y="1000" width="300" height="200" fill="#f5f5f5" stroke="#ccc" stroke-width="1" rx="5" />
+  <text x="200" y="1020" class="text-dark" style="font-size: 14px; font-weight: bold;">图例说明</text>
+  
+  <!-- 开始/结束 -->
+  <ellipse cx="80" cy="1040" rx="25" ry="12" class="start-end" />
+  <text x="120" y="1045" class="text-dark" style="font-size: 10px;">开始/结束</text>
+  
+  <!-- 处理过程 -->
+  <rect x="55" y="1055" width="50" height="20" class="process" />
+  <text x="120" y="1068" class="text-dark" style="font-size: 10px;">处理过程</text>
+  
+  <!-- 判断决策 -->
+  <polygon points="80,1085 95,1095 80,1105 65,1095" class="decision" />
+  <text x="120" y="1098" class="text-dark" style="font-size: 10px;">判断决策</text>
+  
+  <!-- 子过程 -->
+  <rect x="55" y="1115" width="50" height="20" class="subprocess" />
+  <text x="120" y="1128" class="text-dark" style="font-size: 10px;">子过程</text>
+  
+  <!-- 输入输出 -->
+  <rect x="55" y="1145" width="50" height="20" class="input-output" />
+  <text x="120" y="1158" class="text-dark" style="font-size: 10px;">输入/输出</text>
+  
+  <!-- 流程特点说明 -->
+  <text x="50" y="1230" class="text-dark" style="font-size: 12px; font-weight: bold;">流程特点：</text>
+  <text x="50" y="1250" class="text-dark" style="font-size: 10px;">• 支持课程学习和普通两种模式</text>
+  <text x="50" y="1265" class="text-dark" style="font-size: 10px;">• 循环执行多轮仿真</text>
+  <text x="50" y="1280" class="text-dark" style="font-size: 10px;">• 自动提取和保存仿真指标</text>
+  
+  <!-- 关键决策点说明 -->
+  <text x="400" y="1020" class="text-dark" style="font-size: 12px; font-weight: bold;">关键决策点：</text>
+  <text x="400" y="1040" class="text-dark" style="font-size: 10px;">1. 课程学习模式判断</text>
+  <text x="400" y="1055" class="text-dark" style="font-size: 10px;">   - 是：准备课程学习流量文件</text>
+  <text x="400" y="1070" class="text-dark" style="font-size: 10px;">   - 否：直接创建仿真环境</text>
+  <text x="400" y="1090" class="text-dark" style="font-size: 10px;">2. 仿真轮次循环</text>
+  <text x="400" y="1105" class="text-dark" style="font-size: 10px;">   - 是：继续执行单次仿真</text>
+  <text x="400" y="1120" class="text-dark" style="font-size: 10px;">   - 否：保存结果并结束</text>
+  
+</svg>

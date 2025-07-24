@@ -63,7 +63,6 @@ class ParameterParser:
             # 使用配置管理器验证
             self.config_manager.validate_config(config)
             
-            self.logger.info("参数解析和验证完成")
             return config
             
         except (ValidationError, ConfigurationError):
@@ -293,7 +292,7 @@ class TrainingTab:
                     # 静态/动态流量开关
                     traffic_mode = gr.Radio(
                         choices=["静态流量", "动态流量"],
-                        value="静态流量",
+                        value="动态流量",
                         label="流量模式"
                     )
                 with gr.Row():
@@ -438,9 +437,6 @@ class TrainingTab:
                 traffic_mode, static_phase_ratio, base_flow_rate, dynamic_phase_rate
             )
 
-            self.current_training_logger.info(f"配置参数: {config}")
-            
-            self.current_training_logger.info(f"开始{operation}操作")
             yield 10, f"配置解析完成，开始{operation}操作..."
             
             # 执行训练仿真
@@ -462,8 +458,7 @@ class TrainingTab:
             
         finally:
             self.is_training = False
-            if self.current_training_logger:
-                self.current_training_logger.info("训练任务结束")
+            # 训练任务结束
     
     def _validate_inputs(self, network_file, route_file, 
                         total_timesteps, total_simulation_seconds) -> Iterator[Tuple[int, str]]:
@@ -547,9 +542,6 @@ class TrainingTab:
         try:
             if self.is_training:
                 self.is_training = False
-                self.logger.info("用户请求停止训练")
-                if self.current_training_logger:
-                    self.current_training_logger.info("训练被用户停止")
                 return "训练已停止"
             else:
                 return "当前没有正在进行的训练任务"
@@ -592,7 +584,6 @@ class TrainingTab:
             if model_path.exists():
                 yield 25, "发现已有模型，正在加载..."
                 model.load(model_path)
-                self.current_training_logger.info("已加载预训练模型")
             
             # 根据操作类型执行相应任务
             if config.operation == "EVAL":
@@ -631,7 +622,7 @@ class TrainingTab:
                     agent.cleanup()
                 # 显式删除模型引用
                 del model
-                self.logger.info("仿真资源已清理")
+                pass  # 仿真资源已清理
             except Exception as e:
                 self.logger.warning(f"清理资源时出现警告: {e}")
     
@@ -648,7 +639,6 @@ class TrainingTab:
         """
         
         yield start_progress, "初始化固定配时仿真器..."
-        self.current_training_logger.info(f"开始固定配时仿真，仿真时长: {getattr(config, 'num_seconds', 3600)}秒")
         
         try:
             # 创建固定配时仿真器
@@ -673,7 +663,6 @@ class TrainingTab:
             # 获取仿真结果
             results = simulator.get_last_results()
             if results:
-                self.current_training_logger.info(f"✅ 固定配时仿真完成，结果: {results}")
                 yield end_progress, f"固定配时仿真完成！平均等待时间: {results.get('avg_waiting_time', 0):.2f}s"
             else:
                 yield end_progress, "固定配时仿真完成"
@@ -702,10 +691,6 @@ class TrainingTab:
             )
             
             result_msg = f"评估完成\n平均奖励: {mean_reward:.4f}\n标准差: {std_reward:.4f}"
-            self.current_training_logger.info(
-                f"评估结果 - 平均奖励: {mean_reward:.4f}, 标准差: {std_reward:.4f}"
-            )
-            
             yield 90, result_msg
             
         except Exception as e:
@@ -715,7 +700,6 @@ class TrainingTab:
         """运行训练"""
         try:
             yield 30, "开始模型训练..."
-            self.current_training_logger.info(f"开始训练，总步数: {config.total_timesteps}")
             
             # 创建自定义回调
             from stable_baselines3.common.callbacks import BaseCallback
@@ -737,7 +721,6 @@ class TrainingTab:
             # 保存模型
             file_manager.ensure_dir(Path(config.model_path).parent)
             model.save(config.model_path)
-            self.current_training_logger.info(f"模型已保存到: {config.model_path}")
             
             yield 80, "模型保存完成，开始训练后评估..."
             
@@ -755,10 +738,6 @@ class TrainingTab:
             )
             
             result_msg = f"训练完成\n训练后评估 - 平均奖励: {mean_reward:.4f}, 标准差: {std_reward:.4f}"
-            self.current_training_logger.info(
-                f"训练后评估 - 平均奖励: {mean_reward:.4f}, 标准差: {std_reward:.4f}"
-            )
-            
             yield 95, result_msg
             
         except Exception as e:
@@ -798,7 +777,6 @@ class TrainingTab:
             )
             file_manager.write_loop_state(state_list, config.predict_path)
             
-            self.current_training_logger.info(f"预测结果已保存到: {config.predict_path}")
             yield 95, f"预测完成，结果已保存到: {config.predict_path}"
             
         except Exception as e:

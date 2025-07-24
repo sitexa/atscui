@@ -1,4 +1,5 @@
 import xml.etree.ElementTree as ET
+import xml.dom.minidom
 from pathlib import Path
 from typing import List, Dict, Any
 
@@ -46,7 +47,7 @@ def generate_curriculum_flow(
     Generates a SUMO route file with staged traffic flows based on configuration.
 
     Args:
-        base_route_file (str): Path to a .rou.xml file containing only <route> definitions.
+        base_route_file (str): Path to a .rou.xml file containing route definitions (may also contain flow definitions).
         output_file (str): Path where the generated .rou.xml file will be saved.
         total_sim_seconds (int): The total duration of the static flow phases.
         stage_definitions (List[Dict[str, Any]]): A list of dictionaries, each defining a stage.
@@ -62,7 +63,13 @@ def generate_curriculum_flow(
     tree = ET.parse(base_route_file)
     root = tree.getroot()
 
-    # 2. 根据配置计算并添加 <flow>
+    # 2. 删除所有现有的flow元素，只保留route、vType等其他元素
+    flows_to_remove = root.findall('flow')
+    for flow in flows_to_remove:
+        root.remove(flow)
+    print(f"已删除 {len(flows_to_remove)} 个现有的flow定义")
+
+    # 3. 根据配置计算并添加新的 <flow>
     current_begin_time = 0
     for stage in stage_definitions:
         duration = int(total_sim_seconds * stage['duration_ratio'])
@@ -85,10 +92,19 @@ def generate_curriculum_flow(
 
         current_begin_time = end_time
 
-    # 3. 写入到输出文件
+    # 4. 写入到输出文件
     # 确保输出目录存在
     Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-    tree.write(output_file)
+    
+    # 使用minidom格式化XML输出，让每个flow元素单独占一行
+    rough_string = ET.tostring(root, 'unicode')
+    reparsed = xml.dom.minidom.parseString(rough_string)
+    pretty_xml = reparsed.toprettyxml(indent="    ")
+    
+    # 移除空行并写入文件
+    lines = [line for line in pretty_xml.split('\n') if line.strip()]
+    with open(output_file, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
     
     # 返回静态流量阶段的总时长，用于SumoEnv的dynamic_start_time
     return current_begin_time

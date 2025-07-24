@@ -322,9 +322,9 @@ Content-Type: application/json
 
 5. **生成路网**
    ```bash
-   netconvert --node-files=*.nod.xml --edge-files=*.edg.xml \
-              --connection-files=*.con.xml --tllogic-files=*.tll.xml \
-              --output-file=network.net.xml
+   netconvert --node-files=zfdx.nod.xml --edge-files=zfdx.edg.xml \
+              --connection-files=zfdx.con.xml --tllogic-files=zfdx.tll.xml \
+              --output-file=zfdx.net.xml
    ```
 
 6. **创建交通需求** (`*.rou.xml`)

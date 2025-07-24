@@ -397,6 +397,20 @@ class BaseSumoEnv(gym.Env):
         vehicles = self.sumo.vehicle.getIDList()
         speeds = [self.sumo.vehicle.getSpeed(vehicle) for vehicle in vehicles]
         waiting_times = [self.sumo.vehicle.getWaitingTime(vehicle) for vehicle in vehicles]
+        
+        # 计算燃油消耗和CO2排放
+        total_fuel_consumption = 0.0
+        total_co2_emission = 0.0
+        try:
+            for vehicle in vehicles:
+                total_fuel_consumption += self.sumo.vehicle.getFuelConsumption(vehicle)
+                total_co2_emission += self.sumo.vehicle.getCO2Emission(vehicle)
+        except Exception as e:
+            # 如果SUMO版本不支持这些API，则设为0
+            logger.debug(f"无法获取燃油消耗和CO2排放数据: {e}")
+            total_fuel_consumption = 0.0
+            total_co2_emission = 0.0
+        
         return {
             "system_total_stopped": sum(int(speed < 0.1) for speed in speeds),
             "system_total_waiting_time": sum(waiting_times),
@@ -404,6 +418,8 @@ class BaseSumoEnv(gym.Env):
             "system_mean_speed": 0.0 if len(vehicles) == 0 else np.mean(speeds),
             "system_total_throughput": len(self.trip_times),  # 使用ATSCUI自己统计的到达车辆数
             "system_mean_travel_time": 0.0 if not self.trip_times else np.mean(self.trip_times),
+            "system_total_fuel_consumption": total_fuel_consumption,
+            "system_total_co2_emission": total_co2_emission,
         }
 
     def _get_per_agent_info(self):

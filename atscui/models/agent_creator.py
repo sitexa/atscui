@@ -20,9 +20,9 @@ class AgentFactory:
     
     # 支持的智能体类型映射
     AGENT_REGISTRY: Dict[str, Type[BaseAgent]] = {
+        "PPO": PPOAgent,
         "DQN": DQNAgent,
         "A2C": A2CAgent,
-        "PPO": PPOAgent,
         "SAC": SACAgent,
         "FIXTIME": FixTimeAgent,
     }
