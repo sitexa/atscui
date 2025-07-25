@@ -1,34 +1,49 @@
 from dataclasses import dataclass
 from typing import Optional
+from pathlib import Path
 
 
+# 网流算操记，时秒步课图，单模课控路
 @dataclass
 class BaseConfig:
-    net_file: str
-    rou_file: str
-    csv_path: str
-    model_path: str
-    eval_path: str
-    predict_path: str
-    single_agent: bool = True
-    gui: bool = False
-    render_mode: Optional[str] = None
-    operation: Optional[str] = "TRAIN"
+    cross_name: str = "NoName"
+    net_file: str = ""
+    rou_file: str = ""
     algo_name: Optional[str] = "DQN"
-    phase_control: Optional[str] = "sequential"  # 相位控制模式：sequential或flexible
+    operation: Optional[str] = "TRAIN"
+    tensorboard_logs: str = "logs"
+    total_timesteps: int = 1_000_000
+    num_seconds: int = 3600
     prediction_steps: int = 100  # 预测步数
-
-    # Curriculum Learning and Dynamic Flow Parameters
     use_curriculum_learning: bool = False
-    base_template_rou_file: Optional[str] = None
-    static_phase_ratio: float = 0.8
-    base_flow_rate: int = 300
-    dynamic_flows_rate: int = 10
+    gui: bool = False
 
+    single_agent: bool = True
+    render_mode: Optional[str] = None
+
+    curriculum_static_ratio: Optional[float] = 0.8 # 课程学习的静态阶段时长占比
+    curriculum_base_flow: Optional[int] = 300 # 课程学习的基础流率
+    curriculum_dynamic_rate: Optional[int] = 10 # 课程学习的动态阶段生成速率
+
+   # 相位控制模式：sequential或flexible, 控制模式是自动的，根据流量情况自动切换相位控制模式
+    phase_control: Optional[str] = "sequential"  
+
+    # 以下路径是默认目录，通常不需要修改
+    model_dir = Path("models")
+    output_dir = Path("outs")
+    config_dir = output_dir / "configs"
+    csv_dir = output_dir / "train"
+    eval_dir = output_dir / "eval"
+    predict_dir = output_dir / "predict"
+
+    csv_path: str = ""
+    model_path: str = ""
+    predict_path: str = ""
+    eval_path: str = ""
 
 @dataclass
 class RunningConfig(BaseConfig):
-    operation = "PREDICT"
+    operation: str = "PREDICT"
     gui: bool = False
     render_mode = None
     num_seconds = 100
@@ -39,19 +54,18 @@ class AlgorithmConfig(BaseConfig):
     """包含所有算法通用超参数的配置类"""
     total_timesteps: int = 1_000_000
     num_seconds: int = 3600
-    n_eval_episodes: int = 10
-    tensorboard_logs: str = "logs"
     learning_rate: float = 3e-4
-    gamma: float = 0.99
-    verbose: int = 0
     learning_starts: int = 0
+    gamma: float = 0.99
     train_freq: int = 1
     batch_size: int = 256
     buffer_size: int = 50_000
+    n_eval_episodes: int = 10
     n_epochs: int = 20
     n_steps: int = 1024
     exploration_initial_eps: float = 0.05
     exploration_final_eps: float = 0.01
+    verbose: int = 0
 
 
 @dataclass

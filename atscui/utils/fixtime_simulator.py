@@ -18,6 +18,7 @@ import xml.etree.ElementTree as ET
 from sumo_core.envs.sumo_env import SumoEnv
 from atscui.utils.flow_generator import generate_curriculum_flow, extract_routes_from_template
 from atscui.logging_manager import get_logger
+from atscui.config import BaseConfig
 
 class FixedTimingSimulator:
     """固定配时仿真器 - 提供模块化的固定配时仿真功能"""
@@ -36,7 +37,7 @@ class FixedTimingSimulator:
         # 仿真参数
         self.episode_length = getattr(config, 'num_seconds', 3600)
         self.delta_time = getattr(config, 'delta_time', 5)
-        self.num_episodes = 1  # fixtime 只要进行一次仿真
+        self.num_episodes = 5  # fixtime 只要进行一次仿真
         
         # 流量文件路径
         self.route_file_path = config.rou_file
@@ -125,7 +126,7 @@ class FixedTimingSimulator:
         """
         yield 5, "准备流量文件..."
         
-        if self.config.use_curriculum_learning and hasattr(self.config, 'base_template_rou_file') and self.config.base_template_rou_file:
+        if self.config.use_curriculum_learning:
             yield 10, "启用课程学习，正在生成动态流量文件..."
             self.logger.info("使用课程学习: 生成动态流量文件")
             
@@ -133,10 +134,10 @@ class FixedTimingSimulator:
                 # 在课程学习模式下，使用模板文件计算静态流量率用于标准化
                 # 如果模板文件不存在，则跳过静态流量计算
                 static_total_flow = 0
-                if os.path.isfile(self.config.base_template_rou_file):
-                    static_total_flow = self._calculate_static_flow_rate(self.config.base_template_rou_file)
+                if os.path.isfile(self.config.rou_file):
+                    static_total_flow = self._calculate_static_flow_rate(self.config.rou_file)
                 else:
-                    self.logger.warning(f"模板文件不存在，跳过静态流量计算: {self.config.base_template_rou_file}")
+                    self.logger.warning(f"路由文件不存在，跳过静态流量计算: {self.config.rou_file}")
                     static_total_flow = 1000  # 使用默认值
                 
                 # 定义课程阶段（参考env_creator.py和fixed_timing_evaluation.py）
@@ -151,7 +152,7 @@ class FixedTimingSimulator:
                 
                 # 动态提取路线信息或使用默认配置
                 try:
-                    available_routes = extract_routes_from_template(self.config.base_template_rou_file)
+                    available_routes = extract_routes_from_template(self.config.rou_file)
                     
                     # 根据提取的路线动态构建流量分布，使用静态流量总量进行标准化
                     route_distribution = {}
@@ -198,43 +199,17 @@ class FixedTimingSimulator:
                 from datetime import datetime
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
                 
-                # 优先从net_file提取路口名称，避免使用哈希值
-                if hasattr(self.config, 'net_file') and self.config.net_file:
-                    net_path = Path(self.config.net_file)
-                    net_filename = net_path.stem
-                    parts = net_filename.split('.')
-                    intersection_name = parts[0] if parts else net_filename
-                elif hasattr(self.config, 'out_csv_name') and self.config.out_csv_name:
-                    # 从out_csv_name提取路口名称
-                    csv_path = Path(self.config.out_csv_name)
-                    base_name = csv_path.stem
-                    parts = base_name.split('.')
-                    intersection_name = parts[0] if parts else "unknown"
-                else:
-                    # 回退到原有逻辑，尝试从rou_file路径提取路口名称
-                    rou_path = Path(self.config.rou_file)
-                    rou_filename = rou_path.stem
-                    parts = rou_filename.split('.')
-                    intersection_name = parts[0] if parts else "unknown"
-                
                 # 生成课程文件名
-                curriculum_filename = f"{intersection_name}-fixtime-{timestamp}.rou.xml"
-                
-                # 确定输出目录
-                if hasattr(self.config, 'csv_path') and self.config.csv_path:
-                    csv_path = Path(self.config.csv_path)
-                    generated_rou_file = str(csv_path.parent / curriculum_filename)
-                else:
-                    rou_path = Path(self.config.rou_file)
-                    generated_rou_file = str(rou_path.parent / curriculum_filename)
+                curriculum_filename = f"{self.config.cross_name}-fixtime-{timestamp}.rou.xml"
+                generated_rou_file = str(self.config.config_dir / curriculum_filename)
 
                 yield 15, "正在生成课程学习流量文件..."
                 
                 # 调用生成器
                 static_phase_duration = generate_curriculum_flow(
-                    base_route_file=self.config.base_template_rou_file,
+                    base_route_file=self.config.rou_file,
                     output_file=generated_rou_file,
-                    total_sim_seconds=int(self.episode_length * getattr(self.config, 'static_phase_ratio', 0.8)),
+                    total_sim_seconds=int(self.episode_length * getattr(self.config, 'curriculum_static_ratio', 0.8)),
                     stage_definitions=stage_definitions,
                     route_distribution=route_distribution
                 )
@@ -437,9 +412,9 @@ class FixedTimingSimulator:
         }
         
         try:
-            # 从info中提取系统级指标
+            # 检查info的类型并进行相应处理
             if isinstance(info, dict):
-                # 提取系统指标
+                # 从字典中提取系统级指标
                 
                 # 尝试不同的键名
                 waiting_keys = ['system_mean_waiting_time', 'mean_waiting_time', 'avg_waiting_time']
@@ -481,8 +456,21 @@ class FixedTimingSimulator:
                     if key in info:
                         metrics['total_co2_emission'] = float(info[key])
                         break
-                
-                # 指标提取完成
+                        
+            elif isinstance(info, list):
+                # 如果info是列表，尝试从列表中的字典元素提取指标
+                self.logger.debug(f"Info是列表类型，长度: {len(info)}")
+                for item in info:
+                    if isinstance(item, dict):
+                        # 递归调用自身处理字典项
+                        item_metrics = self._extract_final_metrics(item, episode, step)
+                        # 合并非零指标
+                        for key, value in item_metrics.items():
+                            if value > 0:
+                                metrics[key] = max(metrics[key], value)
+                        break
+            else:
+                self.logger.debug(f"Info类型未知: {type(info)}")
         
         except Exception as e:
             self.logger.warning(f"提取指标时出错: {e}")

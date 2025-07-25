@@ -30,13 +30,13 @@ def test_curriculum_learning():
         use_curriculum_learning=True,
         
         # --- Point to the new template file ---
-        base_template_rou_file="/Users/xnpeng/sumoptis/atscui/zfdx/net/zfdx.rou.template.xml",
+        curriculum_template_file="/Users/xnpeng/sumoptis/atscui/zfdx/net/zfdx.rou.template.xml",
         
         # --- Curriculum Learning Parameters ---
         num_seconds=1000,             # Total simulation seconds for this test
-        static_phase_ratio=0.5,       # Static: 500s, Dynamic: 500s
-        base_flow_rate=200,           # Base flow for medium traffic
-        dynamic_flows_rate=15,        # Rate for dynamic phase
+        curriculum_static_ratio=0.5,       # Static: 500s, Dynamic: 500s
+        curriculum_base_flow=200,           # Base flow for medium traffic
+        curriculum_dynamic_rate=15,        # Rate for dynamic phase
         
         # --- Other training parameters ---
         total_timesteps=1200,         # Run for a short period to test

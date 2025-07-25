@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, Type, Union
 
 from atscui.exceptions import ConfigurationError, FileOperationError, ValidationError
 from atscui.logging_manager import get_logger
-
+from atscui.config.base_config import BaseConfig
 
 class ConfigManager:
     """配置管理器"""
@@ -19,7 +19,7 @@ class ConfigManager:
 
     def __init__(self):
         self.logger = get_logger('config')
-        self.config_dir = Path("configs")
+        self.config_dir = BaseConfig.config_dir
         self.config_dir.mkdir(exist_ok=True)
         self._config_cache = {}
 
@@ -80,39 +80,29 @@ class ConfigManager:
             
             # 验证课程学习参数
             if hasattr(config, 'use_curriculum_learning') and config.use_curriculum_learning:
-                if not hasattr(config, 'base_template_rou_file') or not config.base_template_rou_file:
-                    raise ValidationError(
-                        f"使用课程学习时，路线模板文件不能为空",
-                        field_name='base_template_rou_file',
-                        value=config.base_template_rou_file
-                    )
-                if not os.path.exists(config.base_template_rou_file):
-                    raise ValidationError(
-                        f"路线模板文件不存在",
-                        field_name='base_template_rou_file',
-                        value=config.base_template_rou_file
-                    )
+                if hasattr(config, 'curriculum_static_ratio') and config.curriculum_static_ratio is not None:
+                    if not (0.1 <= config.curriculum_static_ratio <= 1.0):
+                        raise ValidationError(
+                            f"静态阶段时长占比必须在0.1到1.0之间",
+                            field_name='curriculum_static_ratio',
+                            value=config.curriculum_static_ratio
+                        )
                 
-                if not hasattr(config, 'static_phase_ratio') or not (0.1 <= config.static_phase_ratio <= 1.0):
-                    raise ValidationError(
-                        f"静态阶段时长占比必须在0.1到1.0之间",
-                        field_name='static_phase_ratio',
-                        value=config.static_phase_ratio
-                    )
+                if hasattr(config, 'curriculum_base_flow') and config.curriculum_base_flow is not None:
+                    if not (config.curriculum_base_flow > 0):
+                        raise ValidationError(
+                            f"基础流率必须大于0",
+                            field_name='curriculum_base_flow',
+                            value=config.curriculum_base_flow
+                        )
                 
-                if not hasattr(config, 'base_flow_rate') or not (config.base_flow_rate > 0):
-                    raise ValidationError(
-                        f"基础流率必须大于0",
-                        field_name='base_flow_rate',
-                        value=config.base_flow_rate
-                    )
-                
-                if not hasattr(config, 'dynamic_flows_rate') or not (config.dynamic_flows_rate > 0):
-                    raise ValidationError(
-                        f"动态阶段生成速率必须大于0",
-                        field_name='dynamic_flows_rate',
-                        value=config.dynamic_flows_rate
-                    )
+                if hasattr(config, 'curriculum_dynamic_rate') and config.curriculum_dynamic_rate is not None:
+                    if not (config.curriculum_dynamic_rate > 0):
+                        raise ValidationError(
+                            f"动态阶段生成速率必须大于0",
+                            field_name='curriculum_dynamic_rate',
+                            value=config.curriculum_dynamic_rate
+                        )
 
             # 验证算法名称
             if hasattr(config, 'algo_name'):
@@ -260,26 +250,26 @@ class ConfigManager:
         
         # 默认训练配置
         default_training = AlgorithmConfig(
-            net_file="xgzd/net/xgzd.net.xml",
-            rou_file="xgzd/net/xgzd-perhour.rou.xml",
-            csv_path="outs/default-DQN",
-            model_path="models/default-model-DQN.zip",
-            eval_path="evals/default-eval-DQN.txt",
-            predict_path="predicts/default-predict-DQN.json",
+            net_file="zfdx/net/zfdx.net.xml",
+            rou_file="zfdx/net/zfdx-perhour.rou.xml",
+            csv_path="outs/exam-DQN",
+            model_path="models/exam-model-DQN.zip",
+            eval_path="outs/evals/exam-eval-DQN.txt",
+            predict_path="outs/predicts/exam-predict-DQN.json",
             algo_name="DQN",
             total_timesteps=100000,
-            num_seconds=10000
+            num_seconds=3600
         )
         
         # 默认运行配置
         default_running = RunningConfig(
-            net_file="xgzd/net/xgzd.net.xml",
-            rou_file="xgzd/net/xgzd-perhour.rou.xml",
-            csv_path="outs/default-predict",
-            model_path="models/default-model-DQN.zip",
-            eval_path="evals/default-eval.txt",
-            predict_path="predicts/default-predict.json",
-            algo_name="DQN"
+            net_file="zfdx/net/zfdx.net.xml",
+            rou_file="zfdx/net/zfdx-perhour.rou.xml",
+            csv_path="outs/exam-DQN",
+            model_path="models/exam-model-DQN.zip",
+            eval_path="outs/evals/exam-eval-DQN.txt",
+            predict_path="outs/predicts/exam-predict-DQN.json",
+            algo_name="DQN",
         )
         
         try:
