@@ -514,7 +514,7 @@ class FixedTimingSimulator:
             flow_type = "curriculum"
         
         # 生成标准化文件名：路口-算法-流量方案-timestamp
-        filename = f"{intersection_name}-fixtime-{flow_type}-{timestamp}.csv"
+        filename = f"{intersection_name}-FIXTIME-{flow_type}-{timestamp}.csv"
         filepath = os.path.join(output_dir, filename)
         
         # 保存结果

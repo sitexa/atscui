@@ -4,6 +4,7 @@ from typing import Optional
 
 from atscui.ui.components.training_tab import TrainingTab
 from atscui.ui.components.visualization_tab import VisualizationTab
+from atscui.ui.components.multi_algorithm_tab import MultiAlgorithmTab
 from atscui.exceptions import UIError, ConfigurationError
 from atscui.logging_manager import get_logger
 from atscui.config.config_manager import config_manager
@@ -19,6 +20,7 @@ class ATSCUI:
         self.logger = get_logger('atscui_main')
         self.training_tab: Optional[TrainingTab] = None
         self.visualization_tab: Optional[VisualizationTab] = None
+        self.multi_algorithm_tab: Optional[MultiAlgorithmTab] = None
         
         # 加载UI配置
         try:
@@ -81,6 +83,19 @@ class ATSCUI:
                             self.logger.error(f"创建可视化标签页失败: {e}")
                             gr.Markdown(
                                 f"❌ **可视化功能暂时不可用**\n\n错误信息: {e}",
+                                elem_classes=["error-message"]
+                            )
+                    
+                    # 多算法对比分析标签页
+                    with gr.TabItem("🔍 多算法对比分析", id="multi_algorithm"):
+                        try:
+                            self.multi_algorithm_tab = MultiAlgorithmTab()
+                            self.multi_algorithm_tab.render()
+                            self.logger.info("多算法对比分析标签页创建成功")
+                        except Exception as e:
+                            self.logger.error(f"创建多算法对比分析标签页失败: {e}")
+                            gr.Markdown(
+                                f"❌ **多算法对比分析功能暂时不可用**\n\n错误信息: {e}",
                                 elem_classes=["error-message"]
                             )
                 
@@ -179,6 +194,11 @@ class ATSCUI:
                 # 如果可视化标签页有清理方法，调用它
                 if hasattr(self.visualization_tab, 'cleanup'):
                     self.visualization_tab.cleanup()
+            
+            if self.multi_algorithm_tab:
+                # 如果多算法对比分析标签页有清理方法，调用它
+                if hasattr(self.multi_algorithm_tab, 'cleanup'):
+                    self.multi_algorithm_tab.cleanup()
             
             self.logger.info("ATSCUI资源清理完成")
             

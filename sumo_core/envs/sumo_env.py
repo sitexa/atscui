@@ -560,7 +560,7 @@ class SumoEnv(BaseSumoEnv):
         info = self._compute_info()
 
         if self.step_counter % self.print_interval == 0:
-            print(f"==========SumoEnv-321:step {self.step_counter}::info==========")
+            print(f"==========SumoEnv-563:step {self.step_counter}::info==========")
             pprint(info)
 
         if self.single_agent:
@@ -594,6 +594,8 @@ class ContinuousSumoEnv(BaseSumoEnv):
         self.single_agent = True
 
     def step(self, action: np.ndarray):
+        self.step_counter += 1
+        self.print_interval = 100
         if self.fixed_ts or len(action) == 0:
             for _ in range(self.delta_time):
                 self._sumo_step()
@@ -609,7 +611,7 @@ class ContinuousSumoEnv(BaseSumoEnv):
         info = self._compute_info()
 
         if self.step_counter % self.print_interval == 0:
-            print(f"==========SumoEnv-321:step {self.step_counter}::info==========")
+            print(f"==========ContinuousSumoEnv-612:step {self.step_counter}::info==========")
             pprint(info)
 
         if self.single_agent:
