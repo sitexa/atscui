@@ -66,6 +66,24 @@ class ParameterParser:
             self.logger.error(error_msg)
             raise ConfigurationError(error_msg)
     
+    def _extract_file_path(self, file_input) -> str:
+        """从文件输入中提取文件路径
+        
+        Args:
+            file_input: 文件输入，可能是字符串路径或临时文件包装器
+            
+        Returns:
+            str: 文件路径
+        """
+        if isinstance(file_input, str):
+            return file_input
+        elif hasattr(file_input, 'name'):
+            # 处理临时文件包装器（如_TemporaryFileWrapper）
+            return file_input.name
+        else:
+            # 尝试转换为字符串
+            return str(file_input)
+    
     def _validate_required_params(self, params: Dict[str, Any]) -> None:
         """验证必需参数"""
         required_params = ['net_file', 'rou_file', 'algo_name', 'operation']
@@ -80,11 +98,15 @@ class ParameterParser:
 
         # 验证网络文件
         if params.get('net_file'):
-            utility_manager.validate_file_path(params['net_file'], must_exist=True)
+            net_file_path = self._extract_file_path(params['net_file'])
+            utility_manager.validate_file_path(net_file_path, must_exist=True)
+            params['net_file'] = net_file_path  # 更新为实际路径
         
         # 验证路由文件 
         if params.get('rou_file'):
-            utility_manager.validate_file_path(params['rou_file'], must_exist=True)
+            rou_file_path = self._extract_file_path(params['rou_file'])
+            utility_manager.validate_file_path(rou_file_path, must_exist=True)
+            params['rou_file'] = rou_file_path  # 更新为实际路径
     
 
     def _create_config(self, params: Dict[str, Any]) -> BaseConfig:
