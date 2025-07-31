@@ -368,7 +368,8 @@ class FixedTimingSimulator:
         try:
             if all_results:
                 # 保存结果到实例变量，供外部访问
-                self._last_results = all_results[-1] if len(all_results) == 1 else all_results
+                # 始终保存最后一轮的结果作为字典，确保get方法可用
+                self._last_results = all_results[-1]
                 
                 # 保存结果到CSV文件
                 csv_path = self.save_results(all_results)
