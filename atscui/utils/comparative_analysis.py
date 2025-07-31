@@ -57,9 +57,48 @@ except ImportError:
         class FileOperationError(Exception):
             pass
 
-# 设置中文字体
-plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'DejaVu Sans']
-plt.rcParams['axes.unicode_minus'] = False
+# 设置中文字体 - 兼容Ubuntu系统
+def setup_chinese_fonts():
+    """设置中文字体，兼容不同操作系统"""
+    import matplotlib.font_manager as fm
+    
+    # 定义字体优先级列表
+    font_list = [
+        'Noto Sans CJK SC',  # Ubuntu推荐的中文字体
+        'WenQuanYi Micro Hei',  # 文泉驿微米黑
+        'WenQuanYi Zen Hei',  # 文泉驿正黑
+        'Droid Sans Fallback',  # Android字体
+        'SimHei',  # Windows字体
+        'Arial Unicode MS',  # macOS字体
+        'DejaVu Sans'  # 默认字体
+    ]
+    
+    # 检查可用字体
+    available_fonts = [f.name for f in fm.fontManager.ttflist]
+    
+    # 找到第一个可用的中文字体
+    selected_font = None
+    for font in font_list:
+        if font in available_fonts:
+            selected_font = font
+            break
+    
+    if selected_font:
+        print(f"使用中文字体: {selected_font}")
+    else:
+        print("警告: 未找到合适的中文字体，可能出现中文乱码")
+        print("Ubuntu系统建议安装中文字体:")
+        print("sudo apt-get install fonts-noto-cjk")
+        print("sudo apt-get install fonts-wqy-microhei")
+        print("sudo apt-get install fonts-wqy-zenhei")
+    
+    plt.rcParams['font.sans-serif'] = font_list
+    plt.rcParams['axes.unicode_minus'] = False
+    
+    return selected_font
+
+# 初始化中文字体设置
+setup_chinese_fonts()
 
 class ComparativeAnalyzer:
     """对比分析器 - 用于PPO与固定周期的性能对比"""
