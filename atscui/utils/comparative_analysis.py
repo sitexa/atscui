@@ -186,7 +186,7 @@ class ComparativeAnalyzer:
         """查找指定路口的所有算法日志文件"""
         # 定义支持的算法类型
         rl_algorithms = ['PPO', 'DQN', 'A2C', 'SAC']
-        fixtime_algorithms = ['fixtime-curriculum', 'fixtime-static']
+        fixtime_algorithms = ['FIXTIME-curriculum', 'FIXTIME-static']
         
         file_groups = {}
         
