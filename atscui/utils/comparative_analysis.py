@@ -79,14 +79,14 @@ def setup_chinese_fonts():
         ]
     elif system == 'linux':  # Ubuntu/Linux
         font_list = [
+            'Noto Sans CJK SC',      # Linux中文支持（优先）
+            'WenQuanYi Micro Hei',   # Linux中文字体
             'Noto Sans',            # 通用字体（中英文平衡）
+            'WenQuanYi Zen Hei',     # Linux中文字体
             'Liberation Sans',       # Linux英文字体
             'DejaVu Sans',          # Linux英文字体
-            'Noto Sans CJK SC',      # Linux中文支持
-            'WenQuanYi Micro Hei',   # Linux中文字体
             'Ubuntu',               # Ubuntu字体
             'Arial',                # 通用英文字体
-            'WenQuanYi Zen Hei',     # Linux中文字体
             'Droid Sans Fallback',   # Android/Linux字体
             'sans-serif'            # 系统默认
         ]
