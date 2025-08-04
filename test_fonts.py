@@ -1,19 +1,12 @@
 import matplotlib.pyplot as plt
-import matplotlib
 from matplotlib import font_manager
-from matplotlib import font_manager, rc
 
+# 强制使用 .ttc 字体文件路径
 font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-font_manager.fontManager.addfont(font_path)
-rc('font', family='Noto Sans CJK SC')  # 添加后就能识别了
+font_prop = font_manager.FontProperties(fname=font_path)
 
-# 设置中文字体
-matplotlib.rcParams['font.family'] = 'Noto Sans CJK SC'  # 简体中文支持
-matplotlib.rcParams['axes.unicode_minus'] = False  # 显示负号
-
-# 测试绘图
-plt.title("测试：横向对比")  # 横 字就是 U+6A2A
-plt.xlabel("横轴")
-plt.ylabel("纵轴")
 plt.plot([1, 2, 3], [3, 2, 5])
+plt.title("中文标题：纵向测试", fontproperties=font_prop)
+plt.xlabel("横轴", fontproperties=font_prop)
+plt.ylabel("纵轴", fontproperties=font_prop)
 plt.show()
