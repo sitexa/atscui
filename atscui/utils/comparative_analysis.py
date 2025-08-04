@@ -625,7 +625,11 @@ class ComparativeAnalyzer:
                     bars = ax.barh(comparison_names, improvement_rates, color=colors_list, alpha=0.7)
                     
                     for i, (bar, rate) in enumerate(zip(bars, improvement_rates)):
-                        ax.text(rate + (2 if rate > 0 else -2), i, f'{rate:+.1f}%', 
+                        # 避免使用+号格式化，防止Ubuntu系统中的符号乱码
+                        rate_text = f'{rate:.1f}%' if rate >= 0 else f'{rate:.1f}%'
+                        if rate > 0:
+                            rate_text = f'+{rate:.1f}%'
+                        ax.text(rate + (2 if rate > 0 else -2), i, rate_text, 
                                va='center', ha='left' if rate > 0 else 'right')
                     
                     ax.axvline(x=0, color='black', linestyle='-', alpha=0.3)
