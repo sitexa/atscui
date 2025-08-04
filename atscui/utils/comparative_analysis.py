@@ -57,45 +57,78 @@ except ImportError:
         class FileOperationError(Exception):
             pass
 
-# 设置中文字体 - 兼容Ubuntu系统
+# 设置中文字体 - 兼容多操作系统
 def setup_chinese_fonts():
-    """设置中文字体，兼容不同操作系统"""
+    """设置中文字体，智能适配不同操作系统"""
     import matplotlib.font_manager as fm
+    import platform
     
-    # 定义字体优先级列表
-    font_list = [
-        'Noto Sans CJK SC',  # Ubuntu推荐的中文字体
-        'WenQuanYi Micro Hei',  # 文泉驿微米黑
-        'WenQuanYi Zen Hei',  # 文泉驿正黑
-        'Droid Sans Fallback',  # Android字体
-        'SimHei',  # Windows字体
-        'Arial Unicode MS',  # macOS字体
-        'DejaVu Sans'  # 默认字体
-    ]
+    # 获取操作系统信息
+    system = platform.system().lower()
+    
+    # 根据操作系统定义字体优先级
+    if system == 'darwin':  # macOS
+        font_list = [
+            'Arial Unicode MS',  # macOS最佳中文支持
+            'PingFang SC',       # macOS系统中文字体
+            'Hiragino Sans GB',  # macOS中文字体
+            'STHeiti',           # macOS中文字体
+            'Arial',             # 英文字体
+            'Helvetica',         # macOS英文字体
+            'sans-serif'         # 系统默认
+        ]
+    elif system == 'linux':  # Ubuntu/Linux
+        font_list = [
+            'Noto Sans CJK SC',      # Linux最佳中文支持
+            'WenQuanYi Micro Hei',   # Linux中文字体
+            'WenQuanYi Zen Hei',     # Linux中文字体
+            'Droid Sans Fallback',   # Android/Linux字体
+            'Liberation Sans',       # Linux英文字体
+            'DejaVu Sans',          # Linux英文字体
+            'Ubuntu',               # Ubuntu字体
+            'Noto Sans',            # 通用字体
+            'Arial',                # 通用英文字体
+            'sans-serif'            # 系统默认
+        ]
+    else:  # Windows或其他系统
+        font_list = [
+            'Microsoft YaHei',   # Windows中文字体
+            'SimHei',           # Windows中文字体
+            'Arial Unicode MS', # Windows中文支持
+            'Arial',            # 英文字体
+            'Helvetica',        # 英文字体
+            'sans-serif'        # 系统默认
+        ]
     
     # 检查可用字体
     available_fonts = [f.name for f in fm.fontManager.ttflist]
     
-    # 找到第一个可用的中文字体
-    selected_font = None
+    # 找到可用的字体
+    selected_fonts = []
     for font in font_list:
         if font in available_fonts:
-            selected_font = font
-            break
+            selected_fonts.append(font)
     
-    if selected_font:
-        print(f"使用中文字体: {selected_font}")
+    # 如果没有找到任何字体，添加通用备选
+    if not selected_fonts:
+        selected_fonts = ['DejaVu Sans', 'Arial', 'sans-serif']
+        print(f"警告: 未找到系统推荐字体，使用通用字体: {selected_fonts[0]}")
+        if system == 'linux':
+            print("建议安装中文字体包: sudo apt-get install fonts-noto-cjk")
     else:
-        print("警告: 未找到合适的中文字体，可能出现中文乱码")
-        print("Ubuntu系统建议安装中文字体:")
-        print("sudo apt-get install fonts-noto-cjk")
-        print("sudo apt-get install fonts-wqy-microhei")
-        print("sudo apt-get install fonts-wqy-zenhei")
+        print(f"检测到操作系统: {system.upper()}")
+        print(f"使用字体: {selected_fonts[0]} (共找到 {len(selected_fonts)} 个可用字体)")
     
-    plt.rcParams['font.sans-serif'] = font_list
-    plt.rcParams['axes.unicode_minus'] = False
+    # 设置matplotlib字体配置
+    plt.rcParams['font.sans-serif'] = selected_fonts
+    plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+    plt.rcParams['font.family'] = ['sans-serif']  # 设置字体族
     
-    return selected_font
+    # 额外的渲染设置，提高兼容性
+    plt.rcParams['axes.formatter.use_mathtext'] = True
+    plt.rcParams['mathtext.fontset'] = 'stix'  # 数学文本字体
+    
+    return selected_fonts[0] if selected_fonts else 'sans-serif'
 
 # 初始化中文字体设置
 setup_chinese_fonts()
