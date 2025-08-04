@@ -57,48 +57,87 @@ except ImportError:
         class FileOperationError(Exception):
             pass
 
-# 设置中文字体 - 兼容多操作系统
+# 设置中文字体 - 跨平台解决方案
 def setup_chinese_fonts():
-    """设置中文字体，智能适配不同操作系统"""
+    """设置中文字体，采用手动注册字体文件的跨平台解决方案"""
     import matplotlib.font_manager as fm
+    import matplotlib as mpl
     import platform
+    
+    # 获取当前文件目录
+    try:
+        current_dir = Path(__file__).resolve().parent
+        project_root = current_dir.parent.parent
+    except NameError:
+        current_dir = Path.cwd()
+        project_root = current_dir
+    
+    # 定义字体文件路径
+    fonts_dir = project_root / "fonts"
+    
+    # 尝试手动注册项目中的字体文件
+    registered_fonts = []
+    font_files = [
+        "NotoSansCJKsc-Regular.otf",
+        "NotoSansCJKsc-Medium.otf", 
+        "NotoSansCJKsc-Light.otf"
+    ]
+    
+    for font_file in font_files:
+        font_path = fonts_dir / font_file
+        if font_path.exists():
+            try:
+                # 手动注册字体文件
+                fm.fontManager.addfont(str(font_path))
+                # 获取字体名称
+                font_name = fm.FontProperties(fname=str(font_path)).get_name()
+                registered_fonts.append(font_name)
+                print(f"✅ 成功注册字体: {font_name} ({font_file})")
+            except Exception as e:
+                print(f"⚠️  注册字体失败 {font_file}: {e}")
     
     # 获取操作系统信息
     system = platform.system().lower()
     
-    # 根据操作系统定义字体优先级
+    # 构建字体优先级列表
+    font_list = []
+    
+    # 首先添加手动注册的字体
+    font_list.extend(registered_fonts)
+    
+    # 然后根据操作系统添加系统字体
     if system == 'darwin':  # macOS
-        font_list = [
+        font_list.extend([
             'Arial Unicode MS',  # macOS最佳中文支持
             'PingFang SC',       # macOS系统中文字体
             'Hiragino Sans GB',  # macOS中文字体
             'STHeiti',           # macOS中文字体
             'Arial',             # 英文字体
             'Helvetica',         # macOS英文字体
-            'sans-serif'         # 系统默认
-        ]
+        ])
     elif system == 'linux':  # Ubuntu/Linux
-        font_list = [
-            'Noto Sans CJK SC',      # Linux中文支持（优先）
+        font_list.extend([
+            'Noto Sans CJK SC',      # Linux中文支持
             'WenQuanYi Micro Hei',   # Linux中文字体
-            'Noto Sans',            # 通用字体（中英文平衡）
+            'Noto Sans',            # 通用字体
             'WenQuanYi Zen Hei',     # Linux中文字体
             'Liberation Sans',       # Linux英文字体
             'DejaVu Sans',          # Linux英文字体
             'Ubuntu',               # Ubuntu字体
             'Arial',                # 通用英文字体
             'Droid Sans Fallback',   # Android/Linux字体
-            'sans-serif'            # 系统默认
-        ]
+        ])
     else:  # Windows或其他系统
-        font_list = [
+        font_list.extend([
             'Microsoft YaHei',   # Windows中文字体
             'SimHei',           # Windows中文字体
             'Arial Unicode MS', # Windows中文支持
             'Arial',            # 英文字体
             'Helvetica',        # 英文字体
-            'sans-serif'        # 系统默认
-        ]
+        ])
+    
+    # 添加通用备选
+    font_list.append('sans-serif')
     
     # 检查可用字体
     available_fonts = [f.name for f in fm.fontManager.ttflist]
@@ -106,27 +145,43 @@ def setup_chinese_fonts():
     # 找到可用的字体
     selected_fonts = []
     for font in font_list:
-        if font in available_fonts:
+        if font in available_fonts or font == 'sans-serif':
             selected_fonts.append(font)
     
-    # 如果没有找到任何字体，添加通用备选
+    # 确保至少有一个可用字体
     if not selected_fonts:
         selected_fonts = ['DejaVu Sans', 'Arial', 'sans-serif']
-        print(f"警告: 未找到系统推荐字体，使用通用字体: {selected_fonts[0]}")
-        if system == 'linux':
-            print("建议安装中文字体包: sudo apt-get install fonts-noto-cjk")
+        print(f"⚠️  警告: 未找到推荐字体，使用备选字体: {selected_fonts[0]}")
     else:
-        print(f"检测到操作系统: {system.upper()}")
-        print(f"使用字体: {selected_fonts[0]} (共找到 {len(selected_fonts)} 个可用字体)")
+        print(f"🎯 检测到操作系统: {system.upper()}")
+        print(f"📝 使用字体: {selected_fonts[0]} (共找到 {len(selected_fonts)} 个可用字体)")
+        if registered_fonts:
+            print(f"🔧 手动注册字体: {', '.join(registered_fonts)}")
     
-    # 设置matplotlib字体配置
-    plt.rcParams['font.sans-serif'] = selected_fonts
-    plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
-    plt.rcParams['font.family'] = ['sans-serif']  # 设置字体族
+    # 设置matplotlib全局字体配置
+    mpl.rcParams['font.sans-serif'] = selected_fonts
+    mpl.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+    mpl.rcParams['font.family'] = ['sans-serif']  # 设置字体族
     
     # 额外的渲染设置，提高兼容性
-    plt.rcParams['axes.formatter.use_mathtext'] = True
-    plt.rcParams['mathtext.fontset'] = 'stix'  # 数学文本字体
+    mpl.rcParams['axes.formatter.use_mathtext'] = True
+    mpl.rcParams['mathtext.fontset'] = 'stix'  # 数学文本字体
+    
+    # 强制刷新字体缓存
+    try:
+        # 尝试不同的字体缓存刷新方法
+        if hasattr(fm.fontManager, '_rebuild'):
+            fm.fontManager._rebuild()
+            print("🔄 字体缓存已刷新")
+        elif hasattr(fm, '_rebuild'):
+            fm._rebuild()
+            print("🔄 字体缓存已刷新")
+        else:
+            # 清除字体缓存的替代方法
+            mpl.font_manager._load_fontmanager(try_read_cache=False)
+            print("🔄 字体缓存已重新加载")
+    except Exception as e:
+        print(f"⚠️  字体缓存刷新失败: {e}，但字体注册仍然有效")
     
     return selected_fonts[0] if selected_fonts else 'sans-serif'
 
