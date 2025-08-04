@@ -1,6 +1,11 @@
 import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib import font_manager
+from matplotlib import font_manager, rc
+
+font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+font_manager.fontManager.addfont(font_path)
+rc('font', family='Noto Sans CJK SC')  # 添加后就能识别了
 
 # 设置中文字体
 matplotlib.rcParams['font.family'] = 'Noto Sans CJK SC'  # 简体中文支持
