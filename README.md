@@ -399,6 +399,12 @@ CMD ["python", "-m", "atscui.main"]
 - **通行效率**: 提升 10-25%
 - **燃油消耗**: 减少 8-20%
 
+![控制效果](outs/train/zfdx_multi_algorithm_analysis.png)
+
+### 研究报告
+
+[信号优化研究报告](docs/信号优化研究报告.png)
+
 ## 🤝 贡献指南
 
 我们欢迎社区贡献！请遵循以下步骤：
@@ -437,6 +443,7 @@ CMD ["python", "-m", "atscui.main"]
 ## 🙏 致谢
 
 - [SUMO](https://sumo.dlr.de/) - 开源交通仿真平台
+- [SUMO-RL](https://github.com/LucasAlegre/sumo-rl) - SUMO强化学习环境
 - [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) - 强化学习算法库
 - [Gradio](https://gradio.app/) - 机器学习Web界面框架
 
