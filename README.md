@@ -449,9 +449,9 @@ CMD ["python", "-m", "atscui.main"]
 
 ## 📞 联系方式
 
-- **项目主页**: [GitHub Repository](https://github.com/your-repo)
-- **问题反馈**: [Issues](https://github.com/your-repo/issues)
-- **讨论交流**: [Discussions](https://github.com/your-repo/discussions)
+- **项目主页**: [GitHub Repository](https://github.com/sitexa/atscui)
+- **问题反馈**: [Issues](https://github.com/sitexa/atscui/issues)
+- **讨论交流**: [Discussions](https://github.com/sitexa/atscui/discussions)
 
 ---
 
