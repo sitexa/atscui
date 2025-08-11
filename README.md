@@ -399,7 +399,7 @@ CMD ["python", "-m", "atscui.main"]
 - **通行效率**: 提升 10-25%
 - **燃油消耗**: 减少 8-20%
 
-![控制效果](outs/train/zfdx_multi_algorithm_analysis.png)
+![控制效果](docs/zfdx_multi_algorithm_analysis.png)
 
 ### 研究报告
 
