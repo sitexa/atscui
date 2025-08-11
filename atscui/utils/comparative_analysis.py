@@ -64,6 +64,9 @@ def setup_chinese_fonts():
     import matplotlib as mpl
     import platform
     
+    # 获取logger实例用于控制台输出
+    logger = get_logger(__name__)
+    
     # 获取当前文件目录
     try:
         current_dir = Path(__file__).resolve().parent
@@ -92,9 +95,9 @@ def setup_chinese_fonts():
                 # 获取字体名称
                 font_name = fm.FontProperties(fname=str(font_path)).get_name()
                 registered_fonts.append(font_name)
-                print(f"✅ 成功注册字体: {font_name} ({font_file})")
+                logger.info(f"✅ 成功注册字体: {font_name} ({font_file})")
             except Exception as e:
-                print(f"⚠️  注册字体失败 {font_file}: {e}")
+                logger.warning(f"⚠️  注册字体失败 {font_file}: {e}")
     
     # 获取操作系统信息
     system = platform.system().lower()
@@ -151,12 +154,12 @@ def setup_chinese_fonts():
     # 确保至少有一个可用字体
     if not selected_fonts:
         selected_fonts = ['DejaVu Sans', 'Arial', 'sans-serif']
-        print(f"⚠️  警告: 未找到推荐字体，使用备选字体: {selected_fonts[0]}")
+        logger.warning(f"⚠️  警告: 未找到推荐字体，使用备选字体: {selected_fonts[0]}")
     else:
-        print(f"🎯 检测到操作系统: {system.upper()}")
-        print(f"📝 使用字体: {selected_fonts[0]} (共找到 {len(selected_fonts)} 个可用字体)")
+        logger.info(f"🎯 检测到操作系统: {system.upper()}")
+        logger.info(f"📝 使用字体: {selected_fonts[0]} (共找到 {len(selected_fonts)} 个可用字体)")
         if registered_fonts:
-            print(f"🔧 手动注册字体: {', '.join(registered_fonts)}")
+            logger.info(f"🔧 手动注册字体: {', '.join(registered_fonts)}")
     
     # 设置matplotlib全局字体配置
     mpl.rcParams['font.sans-serif'] = selected_fonts
@@ -172,16 +175,16 @@ def setup_chinese_fonts():
         # 尝试不同的字体缓存刷新方法
         if hasattr(fm.fontManager, '_rebuild'):
             fm.fontManager._rebuild()
-            print("🔄 字体缓存已刷新")
+            logger.info("🔄 字体缓存已刷新")
         elif hasattr(fm, '_rebuild'):
             fm._rebuild()
-            print("🔄 字体缓存已刷新")
+            logger.info("🔄 字体缓存已刷新")
         else:
             # 清除字体缓存的替代方法
             mpl.font_manager._load_fontmanager(try_read_cache=False)
-            print("🔄 字体缓存已重新加载")
+            logger.info("🔄 字体缓存已重新加载")
     except Exception as e:
-        print(f"⚠️  字体缓存刷新失败: {e}，但字体注册仍然有效")
+        logger.warning(f"⚠️  字体缓存刷新失败: {e}，但字体注册仍然有效")
     
     return selected_fonts[0] if selected_fonts else 'sans-serif'
 
@@ -1142,6 +1145,9 @@ if __name__ == "__main__":
     import sys
     import argparse
     
+    # 获取logger实例用于控制台输出
+    main_logger = get_logger(__name__)
+    
     # 设置命令行参数解析
     parser = argparse.ArgumentParser(description='多算法对比分析工具')
     parser.add_argument('directory', help='包含多种算法结果文件的目录路径')
@@ -1150,12 +1156,12 @@ if __name__ == "__main__":
     # 如果没有提供参数，使用默认测试
     if len(sys.argv) == 1:
         # 测试用例 - 新的多算法分析
-        sample_file = "/Users/xnpeng/sumoptis/atscui/outs/train/zfdx-PPO_conn0_ep1.csv"
+        sample_file = "./outs/train/zfdx-PPO_conn0_ep1.csv"
         
         result_path, message = analyze_training_files(sample_file)
-        print(message)
+        main_logger.info(message)
         if result_path:
-            print(f"多算法分析完成，结果保存在: {result_path}")
+            main_logger.info(f"多算法分析完成，结果保存在: {result_path}")
     else:
         # 解析命令行参数
         args = parser.parse_args()
@@ -1191,10 +1197,10 @@ if __name__ == "__main__":
                     message = f"❌ 在目录 {args.directory} 中未找到合适的算法结果文件"
                     result_path = None
             
-            print(message)
+            main_logger.info(message)
             if result_path:
-                print(f"多算法分析完成，结果保存在: {result_path}")
+                main_logger.info(f"多算法分析完成，结果保存在: {result_path}")
                 
         except Exception as e:
-            print(f"❌ 执行分析时发生错误: {e}")
+            main_logger.error(f"❌ 执行分析时发生错误: {e}")
             sys.exit(1)
