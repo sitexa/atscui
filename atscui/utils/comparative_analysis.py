@@ -285,9 +285,9 @@ class ComparativeAnalyzer:
         for alg in rl_algorithms + fixtime_algorithms:
             file_groups[alg] = []
         
-        # 强化学习算法文件模式: 路口-算法_conn0_ep*.csv
+        # 强化学习算法文件模式: 路口-算法_conn*_ep*.csv
         for algorithm in rl_algorithms:
-            pattern = os.path.join(base_dir, f"{intersection_name}-{algorithm}_conn0_ep*.csv")
+            pattern = os.path.join(base_dir, f"{intersection_name}-{algorithm}_conn*_ep*.csv")
             file_groups[algorithm] = glob.glob(pattern)
         
         # fixtime算法文件模式: 路口-fixtime-类型-*.csv
@@ -1173,15 +1173,15 @@ if __name__ == "__main__":
             else:
                 # 在指定目录中查找样本文件
                 import glob
-                pattern = os.path.join(args.directory, "*-PPO_conn0_ep*.csv")
+                pattern = os.path.join(args.directory, "*-PPO_conn*_ep*.csv")
                 sample_files = glob.glob(pattern)
-                
+
                 if not sample_files:
                     # 尝试其他算法模式
                     patterns = [
-                        "*-DQN_conn0_ep*.csv",
-                        "*-A2C_conn0_ep*.csv",
-                        "*-SAC_conn0_ep*.csv"
+                        "*-DQN_conn*_ep*.csv",
+                        "*-A2C_conn*_ep*.csv",
+                        "*-SAC_conn*_ep*.csv"
                     ]
                     for pattern_template in patterns:
                         pattern = os.path.join(args.directory, pattern_template)
