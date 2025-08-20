@@ -1,8 +1,8 @@
-# 🚦 交通信号智能体训练系统 (ATSCUI)
+# 🚦 交通信号智能体训练系统 (ATSCUI) v1.0.0
 
 **Adaptive Traffic Signal Control Using Intelligence**
 
-基于强化学习的自适应交通信号控制系统，使用SUMO交通仿真器和多种强化学习算法来优化交通信号灯控制策略。
+基于深度强化学习的自适应交通信号控制系统，使用SUMO交通仿真器和多种强化学习算法来优化交通信号灯控制策略。通过智能体与交通环境的实时交互，动态优化信号配时，实现显著的交通效率提升和环保效益。
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15.0-orange.svg)](https://tensorflow.org)
@@ -48,12 +48,23 @@
 
 ## ✨ 核心功能
 
-- 🎯 **多算法支持**: DQN、PPO、A2C、SAC 四种主流强化学习算法
-- 🚗 **交通仿真**: 基于SUMO的真实交通场景仿真
+### 智能体训练管理
+- 🎯 **多算法支持**: DQN、PPO、A2C、SAC 四种主流强化学习算法，支持离散和连续动作空间
+- 🏆 **创新奖励函数**: 红灯车道排队惩罚函数、加权综合奖励函数、红绿灯压力差函数
+- 📚 **课程学习策略**: 三阶段渐进式训练（低强度→中等强度→高强度），提升学习效率和泛化能力
+- 📈 **实时监控**: TensorBoard集成的训练过程可视化，支持多指标实时监控
+
+### 交通场景管理
+- 🚗 **交通仿真**: 基于SUMO的真实交通场景仿真，支持复杂路网建模
+- 🌊 **动态流量生成**: 支持静态、动态、混合三种流量模式，实现领域随机化训练
+- 🎓 **课程学习流量**: 三阶段流量控制，模拟真实交通的时变特性
+- 🗺️ **多场景支持**: 包含振风独秀、中山广场等实际路口案例
+
+### 系统集成与部署
 - 📊 **可视化界面**: 基于Gradio的现代化Web界面
 - 🔄 **完整工作流**: 训练、评估、预测一体化流程
 - 🌐 **实际应用**: 支持真实路口数据建模和部署
-- 📈 **实时监控**: TensorBoard集成的训练过程可视化
+- 🔌 **API服务**: REST API接口，支持外部系统集成
 
 ## 🏗️ 系统架构
 
@@ -97,14 +108,38 @@
 
 ### 系统要求
 
-- **操作系统**: macOS / Linux / Windows
-- **Python**: 3.8+
-- **SUMO**: 1.19.0+
-- **内存**: 8GB+ 推荐
+- **操作系统**: Windows 10+, macOS 10.15+, Ubuntu 18.04+
+- **Python**: 3.12 (推荐) 或 3.8+
+- **内存**: 8GB+ (推荐 16GB)
+- **存储**: 10GB+ 可用空间
+- **SUMO**: 1.22.0 (必需)
+- **GPU**: 可选，支持CUDA加速训练
 
 ### 安装步骤
 
-1. **克隆项目**
+#### 方法一：使用Conda (推荐)
+
+1. **克隆仓库**
+   ```bash
+   git clone <repository-url>
+   cd atscui
+   ```
+
+2. **创建Conda环境**
+   ```bash
+   conda env create -f environment.yml
+   conda activate atscui
+   ```
+
+3. **安装额外依赖**
+   ```bash
+   pip install gradio==5.38.0 pettingzoo==1.25.0 stable-baselines3==2.5.0
+   pip install sumolib==1.22.0 traci==1.22.0
+   ```
+
+#### 方法二：使用pip
+
+1. **克隆仓库**
    ```bash
    git clone <repository-url>
    cd atscui
@@ -118,15 +153,17 @@
    ```
 
 3. **安装依赖**
-  ```bash
-  conda env create -f environment.yml
-  ```
-  或者
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **配置SUMO环境**
+#### SUMO配置
+
+4. **安装SUMO 1.22.0**
+   - 从 [SUMO官网](https://sumo.dlr.de/docs/Downloads.php) 下载安装
+   - 或使用包管理器：`conda install -c conda-forge sumo=1.22.0`
+
+5. **配置SUMO环境**
    ```bash
    export SUMO_HOME="/path/to/sumo"  # 设置SUMO_HOME环境变量
    ```
@@ -206,7 +243,8 @@ atscui/
 │   ├── main.py               # 系统入口
 │   ├── config/               # 配置管理
 │   │   ├── base_config.py    # 基础配置类
-│   │   └── algorithm_configs.py # 算法配置
+│   │   ├── algorithm_configs.py # 算法配置
+│   │   └── config_manager.py # 配置管理器
 │   ├── models/               # 算法模型
 │   │   ├── base_agent.py     # 智能体基类
 │   │   ├── agent_creator.py  # 智能体工厂
@@ -216,6 +254,8 @@ atscui/
 │   │   └── components/       # 界面组件
 │   ├── environment/          # 环境管理
 │   └── utils/                # 工具函数
+│       ├── visualization.py  # 可视化工具
+│       └── file_utils.py     # 文件操作
 ├── sumo_core/                # SUMO环境模块
 │   └── envs/                 # 环境实现
 ├── mynets/                   # 实验脚本
@@ -228,7 +268,13 @@ atscui/
 ├── xgzd/                     # 新港大道路口案例
 ├── zfdx/                     # 振风独秀路口案例
 ├── zszx/                     # 中山大道路口案例
+├── configs/                  # 配置文件
+├── requirements.txt          # Python依赖
+├── environment.yml           # Conda环境
 └── docs/                     # 文档资料
+    ├── 信号优化研究报告.md   # 研究报告
+    ├── ATSCUI基准测试.md     # 基准测试
+    └── 训练原理与策略.md     # 训练策略
 ```
 
 ## 🌍 实际应用案例
@@ -377,14 +423,18 @@ CMD ["python", "-m", "atscui.main"]
 
 | 类别 | 技术 | 版本 | 用途 |
 |------|------|------|------|
-| **仿真引擎** | SUMO | 1.19.0+ | 交通仿真 |
-| **强化学习** | Stable-Baselines3 | 2.0.0+ | 算法框架 |
-| **深度学习** | TensorFlow | 2.15.0 | 神经网络 |
-| **用户界面** | Gradio | 4.44.1+ | Web界面 |
-| **数据处理** | Pandas | <2.0 | 数据分析 |
-| **可视化** | Matplotlib | 3.7.2+ | 图表绘制 |
-| **多智能体** | PettingZoo | 1.23.1+ | 多智能体环境 |
-| **API服务** | Flask | - | REST接口 |
+| **仿真引擎** | SUMO | 1.22.0 | 交通仿真与环境建模 |
+| **强化学习** | Stable-Baselines3 | 2.5.0 | 深度强化学习算法框架 |
+| **深度学习** | TensorFlow | 2.15.0+ | 神经网络训练与推理 |
+| **深度学习** | PyTorch | 2.0+ | 深度学习框架 |
+| **用户界面** | Gradio | 5.38.0 | 现代化Web交互界面 |
+| **数据处理** | Pandas | 最新版 | 交通数据分析与处理 |
+| **可视化** | Matplotlib | 最新版 | 训练结果图表绘制 |
+| **多智能体** | PettingZoo | 1.25.0 | 多路口协调控制环境 |
+| **API服务** | FastAPI | 最新版 | 高性能REST接口 |
+| **数值计算** | NumPy | 最新版 | 高性能数值计算 |
+| **环境管理** | Gymnasium | 1.0.0 | 强化学习环境标准接口 |
+| **环境管理** | Gym | 0.26.2 | 经典强化学习环境 |
 
 ## 📈 性能指标
 
@@ -395,9 +445,20 @@ CMD ["python", "-m", "atscui.main"]
 - **SAC**: 收敛时间 ~4-8小时 (1M步)
 
 ### 控制效果
-- **平均等待时间**: 降低 15-30%
-- **通行效率**: 提升 10-25%
-- **燃油消耗**: 减少 8-20%
+基于SUMO仿真的测试结果显示，PPO算法相比传统固定配时方法：
+
+- **平均等待时间**: 减少 84.6%
+- **平均速度**: 提升 262%
+- **燃油消耗**: 降低 87.0%+
+- **CO2排放**: 减少 87.0%+
+- **通行效率**: 显著提升，展现出卓越的交通优化效果
+
+### 基准测试结果
+
+**振风独秀路口 (zfdx) 测试数据**:
+- **静态流量仿真**: 1,331辆车通过，流量强度 1,370.0 veh/h
+- **动态流量仿真**: 2,128辆车通过，时间加权平均流量 1,023.2 veh/h
+- **课程学习效果**: 三阶段渐进式训练显著提升智能体泛化能力
 
 ![控制效果](docs/zfdx_multi_algorithm_analysis.png)
 
